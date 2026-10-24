@@ -62,8 +62,10 @@ select is((select suspended_by_decision_context_id from core.engagement where id
 select tests.login(tests.w('u_r'));
 select tests.must(api.suspend_engagement(tests.key(), tests.w('e1'), tests.version('core.engagement', tests.w('e1')), 'Second restriction'));
 select tests.login(tests.w('u_a1'));
-select tests.must(api.record_person_organisation(tests.key(), tests.w('p_h2'), tests.w('org_o'), 'subcontractor', now() - interval '1 day'));
+select tests.set_w('rel_h2', tests.must(api.record_person_organisation(tests.key(), tests.w('p_h2'), tests.w('org_o'), 'subcontractor', now() - interval '1 day')));
 select tests.login(tests.w('u_h2'));
+select tests.must(api.accept_relationship(tests.key(), tests.w('rel_h2'),
+  tests.version('core.person_organisation_relationship', tests.w('rel_h2'))));
 select is(api.reinstate_engagement(tests.key(), tests.w('e1'), tests.version('core.engagement', tests.w('e1')), 'x') ->> 'code',
   'separation_of_duties', 'someone working for the restricted organisation cannot lift its restriction');
 select tests.login(tests.w('u_r'));
@@ -119,7 +121,7 @@ select is((select acting_delegation_id from core.decision_context
             where action_code = 'engagement.reinstate' and target_id = tests.w('e1')
             order by evaluated_at desc limit 1),
   tests.w('d_from_owner'), 'the decision records that it was taken under the owner''s delegation');
-select is((select count(*)::int from core.status_history where record_id = tests.w('e1')), 7,
+select is((select count(*)::int from core.status_history where record_id = tests.w('e1')), 8,
   'every state of the engagement is in its history');
 
 select * from finish();

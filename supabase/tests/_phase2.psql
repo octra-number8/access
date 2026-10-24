@@ -1,0 +1,117 @@
+-- Phase 2 fixture, built through the API on top of the phase 1 world.
+--
+-- Adds, for customer A / venue V1:
+--   service accounts: u_scanner (malware_scanner), u_notifier (notification_sender)
+--   document types: dt_ins (organisation: public liability insurance), dt_card (person: card)
+--   review criteria: rc_ins, rc_card (readable, current, relevant)
+--   competency type: ct_ipaf
+--   organisation C ("Cara Electrical Ltd"), onboarded by invitation: u_cara/p_cara is its
+--   accountable administrator; e_c is its proposed engagement (90 days);
+--   u_ian/p_ian joined C by person invitation (rel_ian).
+
+\set QUIET on
+
+create function tests.sha() returns text language sql as $$
+  select encode(sha256(convert_to(gen_random_uuid()::text, 'UTF8')), 'hex') $$;
+
+create function tests.invite_org(p_email text, p_given text, p_family text,
+                                 p_capacity text default 'performing_contractor',
+                                 p_days integer default 90) returns text
+language plpgsql as $$
+declare r jsonb;
+begin
+  perform tests.login(tests.w('u_a1'));
+  r := api.create_organisation_invitation(tests.key(), tests.w('v1'), p_capacity, p_given, p_family, p_email,
+                                          tests.w('p_a1'), now() + interval '7 days', now(),
+                                          now() + make_interval(days => p_days));
+  perform tests.must(r);
+  perform tests.logout();
+  return r ->> 'token';
+end $$;
+
+create function tests.submit(p_user uuid, p_owner_kind text, p_org uuid, p_person uuid, p_type uuid,
+                             p_expires date default null, p_document uuid default null) returns jsonb
+language plpgsql as $$
+declare r jsonb;
+begin
+  perform tests.login(p_user);
+  r := api.submit_document(tests.key(), coalesce(p_document, gen_random_uuid()), gen_random_uuid(), p_owner_kind,
+                           p_org, p_person, p_type, 'Test document', tests.sha(), 'application/pdf', 120000,
+                           'Issuer Ltd', 'REF-1', null, p_expires);
+  perform tests.logout();
+  return r;
+end $$;
+
+create function tests.scan(p_version uuid, p_result text default 'clean') returns void
+language plpgsql as $$
+begin
+  perform tests.login(tests.w('u_scanner'));
+  perform tests.must(api.record_scan_result(tests.key(), p_version, p_result, 'test-engine 1.0'));
+  perform tests.logout();
+end $$;
+
+create function tests.review(p_version uuid, p_criteria uuid, p_outcome text default 'reviewed_no_further_comments')
+returns jsonb language plpgsql as $$
+declare r jsonb;
+begin
+  perform tests.login(tests.w('u_r'));
+  r := api.review_document(tests.key(), p_version, p_criteria, p_outcome,
+         jsonb_build_object('readable', true, 'current', true, 'relevant', p_outcome = 'reviewed_no_further_comments'),
+         'Public liability cover for electrical installation work at the Exhibition Centre');
+  perform tests.logout();
+  return r;
+end $$;
+
+create function tests.build_phase2() returns void
+language plpgsql as $$
+declare
+  u_scanner  uuid := tests.new_user('scanner@octra.test');
+  u_notifier uuid := tests.new_user('notifier@octra.test');
+  u_cara     uuid := tests.new_user('cara@cara.test');
+  u_ian      uuid := tests.new_user('ian@cara.test');
+  criteria   jsonb := '[{"code":"readable","label":"Received and readable"},
+                        {"code":"current","label":"Current for the stated dates"},
+                        {"code":"relevant","label":"Relevant to the stated scope"}]';
+  dt_ins uuid; dt_card uuid; rc_ins uuid; rc_card uuid; ct_ipaf uuid;
+  r jsonb; tok text;
+begin
+  -- Runbook step: platform service accounts.
+  insert into core.service_account (auth_user_id, purpose) values (u_scanner, 'malware_scanner'), (u_notifier, 'notification_sender');
+
+  perform tests.login(tests.w('u_a1'));
+  dt_ins  := tests.must(api.create_document_type(tests.key(), tests.w('v1'), 'INS', 'Public liability insurance', 'organisation'));
+  dt_card := tests.must(api.create_document_type(tests.key(), tests.w('v1'), 'CARD', 'Skills card', 'person'));
+  rc_ins  := tests.must(api.publish_review_criteria(tests.key(), dt_ins, criteria, tests.w('p_a1'), now() - interval '1 day', 'Initial criteria'));
+  rc_card := tests.must(api.publish_review_criteria(tests.key(), dt_card, criteria, tests.w('p_a1'), now() - interval '1 day', 'Initial criteria'));
+  ct_ipaf := tests.must(api.create_competency_type(tests.key(), tests.w('v1'), 'IPAF', 'IPAF powered access'));
+  perform tests.logout();
+
+  tok := tests.invite_org('cara@cara.test', 'Cara', 'Contractor');
+  perform tests.login(u_cara);
+  r := api.accept_invitation(tests.key(), tok, tests.w('pn'), 'Cara Electrical Ltd', null, '11223344', 'Cara', 'Contractor');
+  perform tests.must(r);
+  perform tests.set_w('org_c', (r ->> 'organisation_id')::uuid);
+  perform tests.set_w('p_cara', (r ->> 'person_id')::uuid);
+  perform tests.set_w('e_c', (r ->> 'engagement_id')::uuid);
+
+  r := api.create_person_invitation(tests.key(), (r ->> 'organisation_id')::uuid, 'employee', 'Ian', 'Installer',
+                                    'ian@cara.test', now() + interval '7 days');
+  perform tests.must(r);
+  tok := r ->> 'token';
+  perform tests.login(u_ian);
+  r := api.accept_invitation(tests.key(), tok, tests.w('pn'));
+  perform tests.must(r);
+  perform tests.set_w('p_ian', (r ->> 'person_id')::uuid);
+  perform tests.set_w('rel_ian', (r ->> 'relationship_id')::uuid);
+  perform tests.logout();
+
+  perform tests.set_w('u_scanner', u_scanner); perform tests.set_w('u_notifier', u_notifier);
+  perform tests.set_w('u_cara', u_cara); perform tests.set_w('u_ian', u_ian);
+  perform tests.set_w('dt_ins', dt_ins); perform tests.set_w('dt_card', dt_card);
+  perform tests.set_w('rc_ins', rc_ins); perform tests.set_w('rc_card', rc_card);
+  perform tests.set_w('ct_ipaf', ct_ipaf);
+end $$;
+
+grant execute on all functions in schema tests to authenticated;
+select tests.build_phase2();
+\set QUIET off

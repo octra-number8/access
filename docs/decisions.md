@@ -59,6 +59,20 @@ Each entry records what was decided, by whom, and what it changes. Open items ar
   - **Appointee acknowledgement:** required before an appointment is in force.
   - **Appointment suspension:** not in phase 1; revoke and re-issue instead.
 
+## D-010 — Lifting a restriction: owner, equivalent or owner's delegate (B1)
+- **Date:** 24 October 2026 · **Decided by:** Wes Pierce
+- A restriction may be lifted by the appointment that imposed it, any in-force appointment of the **same appointment type** covering the scope, or a delegate of the imposing appointment. People currently related to the restricted organisation are excluded. As built in phase 1; applies to every later restriction (person, organisation, permit suspension).
+
+## D-011 — Appointment type versions need technical-authority sign-off (B2)
+- **Date:** 24 October 2026 · **Decided by:** Wes Pierce
+- Phase 1: a tenant administrator publishes, naming an owner (bootstrap only).
+- From phase 2: a new version is proposed by an administrator and takes effect only when approved by an in-force root appointee at that venue (Q23). The bootstrap path remains only while the venue has no root appointment.
+
+## D-012 — Phase 2 design approved
+- **Date:** 24 October 2026 · **Decided by:** Wes Pierce
+- [phase-2-design.md](phase-2-design.md) approved with the recommendations for P2-1 to P2-9: phase 2 is split into 2a (database and API) and 2b (screens, email, storage); engagements start `proposed` and need appointment-based approval against evidence; one accountable plus at most one deputy contractor administrator; uploader and owning organisation excluded from review; downloads blocked until scanned clean; PDF/JPEG/PNG up to 20 MB; restrictions have real effects; relationships activate only on the person's acceptance; appointment type versions need root-appointee approval.
+- **Deferred:** the malware scanner product (P2-5) is chosen before 2b.
+
 ---
 
 ## CLAUDE.md wording — applied 24 October 2026 (approved by Wes Pierce)
@@ -95,10 +109,16 @@ repository CLAUDE.md is the controlling version.
 
 | Ref | Question | Recommendation |
 |---|---|---|
-| B1 | Who counts as an "equivalent" authority able to lift a restriction (Q18, invariant 7)? | Any holder of the same appointment type covering the scope, plus the owner's delegates. People from the restricted organisation are excluded. This is what is built. |
-| B2 | Who may publish appointment type versions? | Phase 1: a tenant administrator, naming an owner. From phase 2: require the venue's root appointee (technical authority) to approve, with the administrator recording it (Q23). |
 | B3 | Break-glass maximum duration. | 8 hours, as built. A platform setting, not venue configuration. |
 | B4 | Supabase CLI on this machine is incomplete (`supabase-go` missing). | Reinstall the CLI so `supabase db reset` and `supabase test db` run; until then `scripts/db-test.sh` runs the same migrations and tests in the Supabase Postgres image. |
+
+## Open — raised by the phase 2a build (see phase-2-design.md §11)
+
+| Ref | Question | Recommendation |
+|---|---|---|
+| C1 | When an organisation's accountable administrator leaves, who takes over? | A tenant administrator sets the new one (built). Notify the venue owner when it happens (notifications phase). |
+| C2 | Evidence uses the latest submitted version, so a newer version awaiting review blocks. | Keep: the newest evidence is what the contractor is relying on. |
+| C3 | Organisation administrators can see their people's contact details. | Keep, subject to the privacy adviser (G11). |
 
 ## Open — affect later phases
 

@@ -172,11 +172,15 @@ select throws_ok(format($$select api.grant_appointment(%L, %L, %L, %L, array[%L]
 select tests.logout();
 
 -- A scoped appointer: HALL v2 may appoint HALL within its own scope.
+-- D-011: once a venue has a root appointment, versions are proposed and approved.
 select tests.login(tests.w('u_a1'));
-select tests.set_w('tv_hall2', tests.must(api.publish_appointment_type_version(tests.key(), tests.w('t_hall'),
+select tests.set_w('tv_hall2', tests.must(api.propose_appointment_type_version(tests.key(), tests.w('t_hall'),
   array['engagement.suspend','engagement.reinstate','test.area_action','delegation.grant','appointment.grant','appointment.revoke'],
   array[tests.w('pc_hw')], '{}', array[tests.w('t_hall')], false, true, tests.w('p_a1'),
   now() - interval '1 minute', 'Hall APs may appoint within their halls')));
+select tests.login(tests.w('u_r'));
+select tests.must(api.decide_appointment_type_version(tests.key(), tests.w('tv_hall2'),
+  tests.version('core.appointment_type_version', tests.w('tv_hall2')), 'approve', 'Agreed at technical review'));
 select tests.logout();
 
 select tests.login(tests.w('u_r'));

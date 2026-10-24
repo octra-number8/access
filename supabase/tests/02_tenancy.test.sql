@@ -84,7 +84,9 @@ select is((select count(*)::int from api.organisation), 1, 'an operative sees on
 select is((select count(*)::int from api.person_contact), 1, 'an operative sees only their own contact details');
 select is((select count(*)::int from api.engagement where organisation_id = tests.w('org_o')), 1,
   'an operative sees their organisation''s engagement');
-select is((select count(*)::int from api.audit_event), 0, 'an operative who has done nothing sees no audit events');
+select is((select count(*)::int from api.audit_event where actor_user_id is distinct from tests.w('u_op')), 0,
+  'an operative sees no audit events except their own');
+select ok((select count(*) from api.audit_event) > 0, 'and does see their own (accepting their relationship)');
 select tests.logout();
 
 select tests.login(tests.w('u_a1'));

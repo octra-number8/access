@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -102,14 +102,19 @@ describe("write", () => {
 });
 
 describe("action catalogue", () => {
-  it("matches the codes seeded by the migration", () => {
-    const sql = readFileSync(
-      join(__dirname, "../../../supabase/migrations/20261024000003_catalogue_state_machine.sql"),
-      "utf8",
-    );
-    const seeded = [...sql.matchAll(/^\s+\('([a-z_]+\.[a-z_]+)',\s+'(?:appointment|tenant_admin|platform_admin|subject)'/gm)].map(
-      (m) => m[1],
-    );
+  it("matches the codes seeded by the migrations", () => {
+    const dir = join(__dirname, "../../../supabase/migrations");
+    const seeded = readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort()
+      .flatMap((f) =>
+        [
+          ...readFileSync(join(dir, f), "utf8").matchAll(
+            /^\s+\('([a-z_]+\.[a-z_]+)',\s*'(?:appointment|tenant_admin|platform_admin|subject|organisation_admin|invitee|service|derived)'/gm,
+          ),
+        ].map((m) => m[1]),
+      );
+    expect(seeded.length).toBe(75);
     expect(new Set(seeded)).toEqual(new Set(AUTHORITY_ACTIONS));
   });
 });

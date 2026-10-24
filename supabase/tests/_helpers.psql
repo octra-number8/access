@@ -121,7 +121,7 @@ declare
   p_a1 uuid; p_a2 uuid; p_d uuid; p_r uuid; p_h uuid; p_h2 uuid; p_f uuid; p_op uuid; p_b1 uuid;
   org_o uuid; org_o2 uuid; e1 uuid;
   t_root uuid; t_hall uuid; t_fire uuid; tv_root uuid; tv_hall uuid; tv_fire uuid;
-  ap_r uuid; ap_h uuid; ap_h2 uuid; ap_f uuid;
+  ap_r uuid; ap_h uuid; ap_h2 uuid; ap_f uuid; rel_op uuid; pn uuid;
 begin
   -- Test-only verbs for exercising scope matching directly.
   insert into core.authority_action (code, basis, delegable, description) values
@@ -181,7 +181,9 @@ begin
 
   org_o  := tests.must(api.create_organisation(tests.key(), cust_a, 'Orbit Electrical Ltd', null, '01234567'));
   org_o2 := tests.must(api.create_organisation(tests.key(), cust_a, 'Other Rigging Ltd'));
-  perform tests.must(api.record_person_organisation(tests.key(), p_op, org_o, 'employee', now() - interval '1 year'));
+  rel_op := tests.must(api.record_person_organisation(tests.key(), p_op, org_o, 'employee', now() - interval '1 year'));
+  pn := tests.must(api.publish_privacy_notice(tests.key(), cust_a, 'Customer A privacy notice (TEST WORDING)',
+                                              'privacy-notice/test-v1', p_a1, now() - interval '1 day', 'Test fixture'));
   e1 := tests.must(api.create_engagement(tests.key(), v1, org_o, 'performing_contractor', now() - interval '1 day'));
 
   t_root := tests.must(api.create_appointment_type(tests.key(), v1, 'ROOT', 'Authorising Engineer'));
@@ -189,7 +191,10 @@ begin
   t_fire := tests.must(api.create_appointment_type(tests.key(), v1, 'FIRE', 'Fire Systems Authorised Person'));
   tv_root := tests.must(api.publish_appointment_type_version(tests.key(), t_root,
     array['appointment.grant','appointment.revoke','delegation.grant','engagement.suspend',
-          'engagement.reinstate','test.area_action','test.system_action'],
+          'engagement.reinstate','test.area_action','test.system_action','engagement.approve',
+          'document.review','competency.verify','person.restrict','person.lift_restriction',
+          'organisation.restrict','organisation.lift_restriction','appointment_type.approve',
+          'appointment_type.reject'],
     array[pc_hw, pc_el], array[st_fa, st_hv], array[t_hall, t_fire],
     true, false, p_a1, now() - interval '2 days', 'Initial set-up'));
   tv_hall := tests.must(api.publish_appointment_type_version(tests.key(), t_hall,
@@ -226,6 +231,10 @@ begin
   perform tests.must(api.acknowledge_appointment(tests.key(), ap_h2, tests.version('core.appointment', ap_h2)));
   perform tests.login(u_f);
   perform tests.must(api.acknowledge_appointment(tests.key(), ap_f, tests.version('core.appointment', ap_f)));
+  perform tests.login(u_op);
+  perform tests.must(api.accept_relationship(tests.key(), rel_op, tests.version('core.person_organisation_relationship', rel_op)));
+  perform tests.login(u_r);
+  perform tests.must(api.approve_engagement(tests.key(), e1, tests.version('core.engagement', e1)));
   perform tests.logout();
 
   perform tests.set_w('u_platform', u_platform); perform tests.set_w('u_a1', u_a1);
@@ -244,7 +253,7 @@ begin
   perform tests.set_w('p_a1', p_a1); perform tests.set_w('p_a2', p_a2); perform tests.set_w('p_d', p_d);
   perform tests.set_w('p_r', p_r); perform tests.set_w('p_h', p_h); perform tests.set_w('p_h2', p_h2);
   perform tests.set_w('p_f', p_f); perform tests.set_w('p_op', p_op); perform tests.set_w('p_b1', p_b1);
-  perform tests.set_w('org_o', org_o); perform tests.set_w('org_o2', org_o2); perform tests.set_w('e1', e1);
+  perform tests.set_w('org_o', org_o); perform tests.set_w('rel_op', rel_op); perform tests.set_w('pn', pn); perform tests.set_w('org_o2', org_o2); perform tests.set_w('e1', e1);
   perform tests.set_w('t_root', t_root); perform tests.set_w('t_hall', t_hall); perform tests.set_w('t_fire', t_fire);
   perform tests.set_w('tv_root', tv_root); perform tests.set_w('tv_hall', tv_hall); perform tests.set_w('tv_fire', tv_fire);
   perform tests.set_w('ap_r', ap_r); perform tests.set_w('ap_h', ap_h);

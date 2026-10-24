@@ -64,7 +64,7 @@ select throws_ok(format($$select api.suspend_engagement(%L, %L, %s, 'stale')$$,
                         tests.key(), tests.w('e2'), tests.version('core.engagement', tests.w('e2')) + 1),
   'PT409', null, 'a decision made against a stale version is refused');
 select tests.logout();
-select is((select status from core.engagement where id = tests.w('e2')), 'active', 'and nothing changed');
+select is((select status from core.engagement where id = tests.w('e2')), 'proposed', 'and nothing changed');
 select is((select count(*)::int from core.decision_context where target_id = tests.w('e2') and action_code = 'engagement.suspend'), 0,
   'and the refused decision left no decision context behind');
 

@@ -1,0 +1,266 @@
+-- Shared pgTAP helpers and fixture. Included by each *.test.sql with \ir; everything
+-- here lives inside the test's transaction and is rolled back.
+--
+-- The fixture is built only through the api RPCs, as real signed-in users, so the
+-- tests exercise the same path clients use. The only direct insert is the platform
+-- administrator, which in production is a runbook step, not an API call.
+
+\set QUIET on
+set client_min_messages = warning;
+
+create schema tests;
+grant usage on schema tests to authenticated;
+
+create function tests.new_user(p_email text) returns uuid
+language plpgsql security definer
+as $$
+declare v uuid := gen_random_uuid();
+begin
+  insert into auth.users (id, email) values (v, p_email);
+  return v;
+end $$;
+
+-- No SET clause on these two: they must change the session's role.
+create function tests.login(p_user uuid) returns void
+language plpgsql
+as $$
+begin
+  execute 'reset role';
+  perform set_config('request.jwt.claim.sub', p_user::text, true);
+  perform set_config('request.jwt.claims', json_build_object('sub', p_user, 'role', 'authenticated')::text, true);
+  perform set_config('octra.decision_context_id', '', true);
+  perform set_config('octra.transition', '', true);
+  execute 'set local role authenticated';
+end $$;
+
+create function tests.logout() returns void
+language plpgsql
+as $$
+begin
+  execute 'reset role';
+  perform set_config('request.jwt.claim.sub', '', true);
+  perform set_config('request.jwt.claims', '', true);
+  perform set_config('octra.decision_context_id', '', true);
+  perform set_config('octra.actor_kind', '', true);
+  perform set_config('octra.actor_person_id', '', true);
+  perform set_config('octra.acting_appointment_id', '', true);
+  perform set_config('octra.acting_delegation_id', '', true);
+  perform set_config('octra.transition', '', true);
+end $$;
+
+create function tests.key() returns text language sql as $$ select gen_random_uuid()::text $$;
+
+-- Fixture ids live in a transaction-local setting so any role can read them.
+create function tests.w(p_key text) returns uuid language sql stable as $$
+  select (current_setting('tests.world')::jsonb ->> p_key)::uuid $$;
+create function tests.set_w(p_key text, p_value uuid) returns void language sql as $$
+  select set_config('tests.world',
+    (coalesce(nullif(current_setting('tests.world', true), ''), '{}')::jsonb
+       || jsonb_build_object(p_key, p_value))::text, true) $$;
+
+-- Asserts an RPC result succeeded during fixture building; returns its id.
+create function tests.must(p_result jsonb) returns uuid
+language plpgsql
+as $$
+begin
+  if not coalesce((p_result ->> 'ok')::boolean, false) then
+    raise exception 'fixture step failed: %', p_result;
+  end if;
+  return (p_result ->> 'id')::uuid;
+end $$;
+
+create function tests.version(p_table regclass, p_id uuid) returns integer
+language plpgsql security definer
+as $$
+declare v integer;
+begin
+  execute format('select row_version from %s where id = $1', p_table) into v using p_id;
+  return v;
+end $$;
+
+grant execute on all functions in schema tests to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- The world
+--
+-- Customer A, venue V1:
+--   SITE (root)
+--   ├── HALL1
+--   │   └── STAND1
+--   ├── HALL2
+--   └── PLANT1
+--   Systems: FA1 (fire alarm, serves HALL1 and HALL2), HV1 (high voltage)
+--   Permit classes: HW, EL
+--   Appointment types:
+--     ROOT  root-eligible; grants HALL and FIRE; classes HW, EL; system types FA, HV
+--     HALL  suspend/reinstate/test.area_action/delegation; class HW; needs competence evidence
+--     FIRE  test.system_action/delegation; system type FA
+--   People: a1, a2 (tenant admins), D (duty holder, no login), R (root AP),
+--           H (HALL in HALL1), H2 (HALL, whole site), F (FIRE on FA1), OP (operative of O)
+--   Organisation O engaged at V1 as performing contractor; O2 not engaged.
+-- Customer A, venue V2: separate site, nobody above has a role there.
+-- Customer B: admin b1, venue W1.
+-- ---------------------------------------------------------------------------
+create function tests.build_world() returns void
+language plpgsql
+as $$
+declare
+  u_platform uuid := tests.new_user('platform@octra.test');
+  u_a1 uuid := tests.new_user('a1@a.test');
+  u_a2 uuid := tests.new_user('a2@a.test');
+  u_r  uuid := tests.new_user('root@a.test');
+  u_h  uuid := tests.new_user('hall@a.test');
+  u_h2 uuid := tests.new_user('hall2@a.test');
+  u_f  uuid := tests.new_user('fire@a.test');
+  u_op uuid := tests.new_user('op@a.test');
+  u_b1 uuid := tests.new_user('b1@b.test');
+  r jsonb;
+  cust_a uuid; cust_b uuid; v1 uuid; v2 uuid; w1 uuid; site uuid; site2 uuid;
+  k_hall uuid; k_stand uuid; k_plant uuid; hall1 uuid; stand1 uuid; hall2 uuid; plant1 uuid;
+  st_fa uuid; st_hv uuid; fa1 uuid; hv1 uuid; pc_hw uuid; pc_el uuid;
+  p_a1 uuid; p_a2 uuid; p_d uuid; p_r uuid; p_h uuid; p_h2 uuid; p_f uuid; p_op uuid; p_b1 uuid;
+  org_o uuid; org_o2 uuid; e1 uuid;
+  t_root uuid; t_hall uuid; t_fire uuid; tv_root uuid; tv_hall uuid; tv_fire uuid;
+  ap_r uuid; ap_h uuid; ap_h2 uuid; ap_f uuid;
+begin
+  -- Test-only verbs for exercising scope matching directly.
+  insert into core.authority_action (code, basis, delegable, description) values
+    ('test.area_action',   'appointment', true, 'Test action targeting an area'),
+    ('test.system_action', 'appointment', true, 'Test action targeting a system');
+  -- Runbook step: the first platform administrator.
+  insert into core.platform_admin (auth_user_id) values (u_platform);
+
+  perform tests.login(u_platform);
+  r := api.create_customer(tests.key(), 'Customer A', 'Ada', 'Admin', u_a1);
+  cust_a := tests.must(r); p_a1 := (r ->> 'admin_person_id')::uuid;
+  r := api.create_customer(tests.key(), 'Customer B', 'Bea', 'Admin', u_b1);
+  cust_b := tests.must(r); p_b1 := (r ->> 'admin_person_id')::uuid;
+
+  perform tests.login(u_b1);
+  w1 := tests.must(api.create_venue(tests.key(), cust_b, 'W1', 'Other Estate', 'Europe/London'));
+
+  perform tests.login(u_a1);
+  p_a2 := tests.must(api.create_person(tests.key(), cust_a, 'Ari', 'Admin'));
+  perform tests.must(api.link_user_account(tests.key(), p_a2, u_a2));
+  perform tests.must(api.grant_tenant_admin(tests.key(), cust_a, p_a2));
+
+  r := api.create_venue(tests.key(), cust_a, 'V1', 'Exhibition Centre', 'Europe/London');
+  v1 := tests.must(r); site := (r ->> 'root_area_id')::uuid;
+  r := api.create_venue(tests.key(), cust_a, 'V2', 'Second Site', 'Europe/London');
+  v2 := tests.must(r); site2 := (r ->> 'root_area_id')::uuid;
+
+  k_hall  := tests.must(api.create_area_kind(tests.key(), v1, 'HALL', 'Hall'));
+  k_stand := tests.must(api.create_area_kind(tests.key(), v1, 'STAND', 'Stand'));
+  k_plant := tests.must(api.create_area_kind(tests.key(), v1, 'PLANT', 'Plant room'));
+  hall1  := tests.must(api.create_area(tests.key(), site, k_hall, 'HALL1', 'Hall 1'));
+  stand1 := tests.must(api.create_area(tests.key(), hall1, k_stand, 'STAND1', 'Stand 1'));
+  hall2  := tests.must(api.create_area(tests.key(), site, k_hall, 'HALL2', 'Hall 2'));
+  plant1 := tests.must(api.create_area(tests.key(), site, k_plant, 'PLANT1', 'Plant room 1'));
+
+  st_fa := tests.must(api.create_system_type(tests.key(), v1, 'FA', 'Fire alarm'));
+  st_hv := tests.must(api.create_system_type(tests.key(), v1, 'HV', 'High voltage'));
+  fa1 := tests.must(api.create_system(tests.key(), v1, st_fa, 'FA1', 'Fire alarm panel 1'));
+  hv1 := tests.must(api.create_system(tests.key(), v1, st_hv, 'HV1', 'HV ring'));
+  perform tests.must(api.link_system_area(tests.key(), fa1, hall1));
+  perform tests.must(api.link_system_area(tests.key(), fa1, hall2));
+
+  pc_hw := tests.must(api.create_permit_class(tests.key(), v1, 'HW', 'Hot works'));
+  pc_el := tests.must(api.create_permit_class(tests.key(), v1, 'EL', 'Electrical isolation'));
+
+  p_d  := tests.must(api.create_person(tests.key(), cust_a, 'Dana', 'Dutyholder'));
+  p_r  := tests.must(api.create_person(tests.key(), cust_a, 'Rae', 'Root', p_email => 'root@a.test'));
+  p_h  := tests.must(api.create_person(tests.key(), cust_a, 'Hal', 'Hall'));
+  p_h2 := tests.must(api.create_person(tests.key(), cust_a, 'Hana', 'Hall'));
+  p_f  := tests.must(api.create_person(tests.key(), cust_a, 'Fen', 'Fire'));
+  p_op := tests.must(api.create_person(tests.key(), cust_a, 'Oli', 'Operative', p_email => 'op@a.test', p_phone => '07000 000000'));
+  perform tests.must(api.link_user_account(tests.key(), p_r, u_r));
+  perform tests.must(api.link_user_account(tests.key(), p_h, u_h));
+  perform tests.must(api.link_user_account(tests.key(), p_h2, u_h2));
+  perform tests.must(api.link_user_account(tests.key(), p_f, u_f));
+  perform tests.must(api.link_user_account(tests.key(), p_op, u_op));
+
+  org_o  := tests.must(api.create_organisation(tests.key(), cust_a, 'Orbit Electrical Ltd', null, '01234567'));
+  org_o2 := tests.must(api.create_organisation(tests.key(), cust_a, 'Other Rigging Ltd'));
+  perform tests.must(api.record_person_organisation(tests.key(), p_op, org_o, 'employee', now() - interval '1 year'));
+  e1 := tests.must(api.create_engagement(tests.key(), v1, org_o, 'performing_contractor', now() - interval '1 day'));
+
+  t_root := tests.must(api.create_appointment_type(tests.key(), v1, 'ROOT', 'Authorising Engineer'));
+  t_hall := tests.must(api.create_appointment_type(tests.key(), v1, 'HALL', 'Hall Authorised Person'));
+  t_fire := tests.must(api.create_appointment_type(tests.key(), v1, 'FIRE', 'Fire Systems Authorised Person'));
+  tv_root := tests.must(api.publish_appointment_type_version(tests.key(), t_root,
+    array['appointment.grant','appointment.revoke','delegation.grant','engagement.suspend',
+          'engagement.reinstate','test.area_action','test.system_action'],
+    array[pc_hw, pc_el], array[st_fa, st_hv], array[t_hall, t_fire],
+    true, false, p_a1, now() - interval '2 days', 'Initial set-up'));
+  tv_hall := tests.must(api.publish_appointment_type_version(tests.key(), t_hall,
+    array['engagement.suspend','engagement.reinstate','test.area_action','delegation.grant'],
+    array[pc_hw], '{}', '{}', false, true, p_a1, now() - interval '2 days', 'Initial set-up'));
+  tv_fire := tests.must(api.publish_appointment_type_version(tests.key(), t_fire,
+    array['test.system_action','delegation.grant'],
+    '{}', array[st_fa], '{}', false, false, p_a1, now() - interval '2 days', 'Initial set-up'));
+
+  -- Root appointment ceremony (D-002): recorded by a1, confirmed by a2, acknowledged by R.
+  ap_r := tests.must(api.record_root_appointment(tests.key(), v1, p_r, p_d, tv_root, array[pc_hw, pc_el],
+    jsonb_build_array(jsonb_build_object('area_id', site),
+                      jsonb_build_object('system_type_id', st_fa),
+                      jsonb_build_object('system_type_id', st_hv)),
+    now() - interval '1 hour', null, (now() + interval '1 year')::date, null, 'Letter of appointment DH-001'));
+  perform tests.login(u_a2);
+  perform tests.must(api.confirm_root_appointment(tests.key(), ap_r, tests.version('core.appointment', ap_r)));
+  perform tests.login(u_r);
+  perform tests.must(api.acknowledge_appointment(tests.key(), ap_r, tests.version('core.appointment', ap_r)));
+
+  -- R appoints H (Hall 1 and below), H2 (whole site) and F (fire alarm panel FA1).
+  ap_h := tests.must(api.grant_appointment(tests.key(), v1, p_h, tv_hall, array[pc_hw],
+    jsonb_build_array(jsonb_build_object('area_id', hall1)),
+    now() - interval '30 minutes', now() + interval '30 days', null, null, 'Assessment record AR-17'));
+  ap_h2 := tests.must(api.grant_appointment(tests.key(), v1, p_h2, tv_hall, array[pc_hw],
+    jsonb_build_array(jsonb_build_object('area_id', site)),
+    now() - interval '30 minutes', now() + interval '30 days', null, null, 'Assessment record AR-18'));
+  ap_f := tests.must(api.grant_appointment(tests.key(), v1, p_f, tv_fire, '{}',
+    jsonb_build_array(jsonb_build_object('system_id', fa1)),
+    now() - interval '30 minutes', now() + interval '30 days'));
+  perform tests.login(u_h);
+  perform tests.must(api.acknowledge_appointment(tests.key(), ap_h, tests.version('core.appointment', ap_h)));
+  perform tests.login(u_h2);
+  perform tests.must(api.acknowledge_appointment(tests.key(), ap_h2, tests.version('core.appointment', ap_h2)));
+  perform tests.login(u_f);
+  perform tests.must(api.acknowledge_appointment(tests.key(), ap_f, tests.version('core.appointment', ap_f)));
+  perform tests.logout();
+
+  perform tests.set_w('u_platform', u_platform); perform tests.set_w('u_a1', u_a1);
+  perform tests.set_w('u_a2', u_a2); perform tests.set_w('u_r', u_r); perform tests.set_w('u_h', u_h);
+  perform tests.set_w('u_h2', u_h2); perform tests.set_w('u_f', u_f); perform tests.set_w('u_op', u_op);
+  perform tests.set_w('u_b1', u_b1);
+  perform tests.set_w('cust_a', cust_a); perform tests.set_w('cust_b', cust_b);
+  perform tests.set_w('v1', v1); perform tests.set_w('v2', v2); perform tests.set_w('w1', w1);
+  perform tests.set_w('site', site); perform tests.set_w('site2', site2);
+  perform tests.set_w('k_hall', k_hall);
+  perform tests.set_w('hall1', hall1); perform tests.set_w('stand1', stand1);
+  perform tests.set_w('hall2', hall2); perform tests.set_w('plant1', plant1);
+  perform tests.set_w('st_fa', st_fa); perform tests.set_w('st_hv', st_hv);
+  perform tests.set_w('fa1', fa1); perform tests.set_w('hv1', hv1);
+  perform tests.set_w('pc_hw', pc_hw); perform tests.set_w('pc_el', pc_el);
+  perform tests.set_w('p_a1', p_a1); perform tests.set_w('p_a2', p_a2); perform tests.set_w('p_d', p_d);
+  perform tests.set_w('p_r', p_r); perform tests.set_w('p_h', p_h); perform tests.set_w('p_h2', p_h2);
+  perform tests.set_w('p_f', p_f); perform tests.set_w('p_op', p_op); perform tests.set_w('p_b1', p_b1);
+  perform tests.set_w('org_o', org_o); perform tests.set_w('org_o2', org_o2); perform tests.set_w('e1', e1);
+  perform tests.set_w('t_root', t_root); perform tests.set_w('t_hall', t_hall); perform tests.set_w('t_fire', t_fire);
+  perform tests.set_w('tv_root', tv_root); perform tests.set_w('tv_hall', tv_hall); perform tests.set_w('tv_fire', tv_fire);
+  perform tests.set_w('ap_r', ap_r); perform tests.set_w('ap_h', ap_h);
+  perform tests.set_w('ap_h2', ap_h2); perform tests.set_w('ap_f', ap_f);
+end $$;
+
+-- Shorthand for evaluate() against a V1 target as the current user.
+create function tests.can(p_action text, p_area uuid default null, p_system uuid default null,
+                          p_class uuid default null, p_appointment uuid default null)
+returns jsonb language sql as $$
+  select api.check(p_action, jsonb_build_object(
+    'customer_id', tests.w('cust_a'), 'venue_id', tests.w('v1'),
+    'area_id', p_area, 'system_id', p_system, 'permit_class_id', p_class,
+    'record_id', gen_random_uuid(), 'target_type', 'test'), p_appointment, null) $$;
+
+grant execute on all functions in schema tests to authenticated;
+
+select tests.build_world();
+\set QUIET off

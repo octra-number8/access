@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# Source documents stay out of version control: they hold internal commercial,
+# competitor and founder-governance material. The register cites them by name.
+*.docx

@@ -1,0 +1,16 @@
+# Local ClamAV for development and integration tests (port 55310).
+# The worker itself is usually run with `npm start` against the local Supabase stack.
+services:
+  clamd:
+    build: ./clamd
+    ports:
+      - "127.0.0.1:55310:3310"
+    volumes:
+      - clamav-db:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "1"]
+      interval: 10s
+      retries: 30
+
+volumes:
+  clamav-db:

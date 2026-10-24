@@ -95,15 +95,23 @@ select throws_ok(format($$select api.review_document(%L, %L, %L, 'reviewed_no_fu
   '22023', null, 'a document that fails a criterion cannot be "no further comments"');
 select throws_ok(format($$select api.review_document(%L, %L, %L, 'reviewed_no_further_comments', '{"readable":true,"current":true,"relevant":true}', 'Approved for all work')$$,
                         tests.key(), tests.w('dv_ins'), tests.w('rc_ins')),
-  '23514', null, 'review wording can never claim approval (CLAUDE.md §1)');
+  '22023', 'Describe the scope you reviewed. Review wording cannot claim approval, certification, verification, a guarantee or compliance.',
+  'review wording can never claim approval, and the refusal says so plainly (CLAUDE.md §1, §6)');
 select throws_ok(format($$select api.review_document(%L, %L, %L, 'reviewed_no_further_comments', '{"readable":true,"current":true,"relevant":true}', 'Verified compliant')$$,
                         tests.key(), tests.w('dv_ins'), tests.w('rc_ins')),
-  '23514', null, 'or verification or compliance');
+  '22023', null, 'or verification or compliance');
 select tests.logout();
 select is((tests.review(tests.w('dv_ins'), tests.w('rc_ins'))) ->> 'ok', 'true',
   'a reviewer records a scoped decision against the declared criteria');
 select is((select scope_wording from core.review_decision where document_version_id = tests.w('dv_ins')),
   'Public liability cover for electrical installation work at the Exhibition Centre', 'with its scope wording');
+
+select throws_ok(format($$insert into core.review_decision (customer_id, venue_id, document_version_id, review_criteria_version_id,
+                          reviewer_person_id, decision_context_id, outcome, criteria_results, scope_wording)
+                          select customer_id, venue_id, document_version_id, review_criteria_version_id, reviewer_person_id,
+                                 decision_context_id, outcome, criteria_results, 'Certified safe'
+                            from core.review_decision limit 1$$),
+  '23514', null, 'the table constraint still refuses such wording if anything bypasses the function');
 
 -- ---- Evidence is immutable --------------------------------------------------------
 select throws_ok(format($$update core.review_decision set outcome = 'not_accepted' where document_version_id = %L$$, tests.w('dv_ins')),

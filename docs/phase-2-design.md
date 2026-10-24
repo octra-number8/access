@@ -154,3 +154,34 @@ Implemented in `supabase/migrations/20261024000013…18`; proved by `supabase/te
 | Accountable administrator leaving | Ending their relationship ends their role; the organisation then has no accountable administrator until a tenant administrator sets one. | **[decide C1]** |
 | Bootstrap publication | Closed once the venue has any root appointment that is not revoked, including one still pending. | D-011. |
 | Not built in 2a | Reminders (notifications phase), the upload/download server, the scanner itself, email delivery — all 2b. | |
+
+---
+
+## 12. As built (phase 2b, 24 October 2026)
+
+**Built and tested**
+- Migrations `…19_scanner` (leased scan jobs, heartbeats, `rejected`, documents bucket with platform limits, scanner-only storage read of pending files, unambiguous "latest submission" ordering) and `…20_review_wording_message` (plain-language refusal of approval wording).
+- Scanner service (`services/scanner`): TypeScript worker plus ClamAV 1.4 (`clamav/clamav-debian`, multi-architecture), pull-based, fail-closed; Fargate task definition and runbook in `infra/aws` (not deployed).
+- Next.js 16 app (`src/`): sign-in by 6-digit email code; invitation preview and acceptance with the privacy notice; venue administration (invite an organisation; invitations; engagements with the evidence each needs); a contractor's organisation page (engagement evidence, documents, upload, invite people); a decisions page for appointees (document review against declared criteria, engagement approval); downloads only through `api.document_access` and 60-second attachment links.
+- Every refusal on screen states what is unavailable, why, what is missing and who can resolve it; raw database errors are never shown.
+
+**Tests**
+- 387 pgTAP assertions through the official CLI (`supabase test db`), 13 app unit tests, 16 scanner tests (4 against a real clamd: EICAR detected, oversize not called clean), and a 6-step end-to-end test against the full local stack with the real scanner (including a file whose stored bytes were swapped after registration, which the scanner rejected).
+- A walkthrough in the browser as the venue administrator, the contractor and the Authorising Engineer, with real sign-in codes from Mailpit: invite → email → sign-up by code → accept → upload → scanned clean → approval refused with its reason → review (approval wording refused in plain English) → approval → engagement active, audit chain verified.
+
+**Found and fixed during 2b**
+- clamd kept old signatures in memory after an update at start-up; the fail-closed rule caught it. The worker now asks clamd to reload when signatures are stale.
+- The scanner was not bound to the `api` schema.
+- "Latest submission" tied for two documents submitted in one transaction.
+- `rejected` would have counted as usable evidence.
+- Raw constraint text reached the screen; pages did not refresh after actions; "Decline" looked like "Accept".
+
+**Not built in 2b (API exists and is tested; no screens yet)**
+Deputy and accountable-administrator changes, accepting or declining an administrator-recorded relationship, facilitated acceptance, competency declaration and verification, restrictions, appointment-type proposals and approval, resolving a duplicate organisation, cancelling invitations, the scanner-status view for operations. There are no buttons for these yet, rather than buttons that do nothing.
+
+**Known gaps**
+- The approval confirmation disappears when the approved item leaves the list (the result is correct; the feedback is lost).
+- No formal WCAG 2.1 AA audit yet; layout is responsive but not tested on devices.
+- Production email needs an SMTP provider (E1); the scanner needs the AWS account (S1).
+
+**Update, D-014 (24 October 2026):** malware scanning is held off. Uploads are recorded as `not_scanned` and usable at once, labelled on screen; migration `…21_scanning_setting` adds the platform setting, changeable only by migration. The scanner remains built and tested for when it is switched on.

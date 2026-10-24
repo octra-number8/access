@@ -73,6 +73,19 @@ Each entry records what was decided, by whom, and what it changes. Open items ar
 - [phase-2-design.md](phase-2-design.md) approved with the recommendations for P2-1 to P2-9: phase 2 is split into 2a (database and API) and 2b (screens, email, storage); engagements start `proposed` and need appointment-based approval against evidence; one accountable plus at most one deputy contractor administrator; uploader and owning organisation excluded from review; downloads blocked until scanned clean; PDF/JPEG/PNG up to 20 MB; restrictions have real effects; relationships activate only on the person's acceptance; appointment type versions need root-appointee approval.
 - **Deferred:** the malware scanner product (P2-5) is chosen before 2b.
 
+## D-013 — Malware scanner design approved
+- **Date:** 24 October 2026 · **Decided by:** Wes Pierce
+- [scanner-design.md](scanner-design.md) approved with S1–S6: self-hosted ClamAV on AWS ECS Fargate in eu-west-2, one always-on task; pull-based worker with leased jobs and no inbound endpoint; a `rejected` scan outcome; starting thresholds (poll 5 s, queue alert 15 min, heartbeat 5 min, signature maximum 24 h); the scanner's own Supabase login in AWS Secrets Manager, rotated quarterly; the `clamav/clamav` image pulled for local tests.
+
+## D-014 — Malware scanning held off
+- **Date:** 24 October 2026 · **Decided by:** Wes Pierce
+- Scanning is held off for now and kept as an improvement "if this portal takes off". Supersedes the *deployment* part of D-013; the D-013 design stands for when scanning is switched on.
+- Uploads are recorded as `not_scanned` (never "clean") and are usable at once. Reviewers are told on screen that the file has not been malware-scanned.
+- Still in force: content-based type checks (PDF, JPEG, PNG only), 20 MB limit, SHA-256 recorded at upload, downloads only as 60-second attachment links after authorisation and audit, never served inline.
+- The switch is `core.platform_setting` (`malware_scanning`), changeable only by migration. Turning scanning on later: deploy the scanner (docs/scanner-design.md), then a migration inserting `required`. Files recorded while it was off can then be scanned.
+- Scanner code, tables and tests remain and keep passing (pgTAP with the setting on; end-to-end with `E2E_SCANNER=1`).
+- **Risk accepted:** files reach reviewers' computers unscanned. Mitigation: reviewers use machines with up-to-date antivirus. Customers' security questionnaires may ask about this.
+
 ---
 
 ## CLAUDE.md wording — applied 24 October 2026 (approved by Wes Pierce)
@@ -110,7 +123,6 @@ repository CLAUDE.md is the controlling version.
 | Ref | Question | Recommendation |
 |---|---|---|
 | B3 | Break-glass maximum duration. | 8 hours, as built. A platform setting, not venue configuration. |
-| B4 | Supabase CLI on this machine is incomplete (`supabase-go` missing). | Reinstall the CLI so `supabase db reset` and `supabase test db` run; until then `scripts/db-test.sh` runs the same migrations and tests in the Supabase Postgres image. |
 
 ## Open — raised by the phase 2a build (see phase-2-design.md §11)
 
@@ -119,6 +131,14 @@ repository CLAUDE.md is the controlling version.
 | C1 | When an organisation's accountable administrator leaves, who takes over? | A tenant administrator sets the new one (built). Notify the venue owner when it happens (notifications phase). |
 | C2 | Evidence uses the latest submitted version, so a newer version awaiting review blocks. | Keep: the newest evidence is what the contractor is relying on. |
 | C3 | Organisation administrators can see their people's contact details. | Keep, subject to the privacy adviser (G11). |
+
+## Open — raised by the phase 2b build
+
+| Ref | Question | Recommendation |
+|---|---|---|
+| E1 | Production email: invitations are sent by the app over SMTP, and Supabase Auth sends sign-in codes. Supabase's built-in mail is not for production. | One UK/EU-hosted SMTP provider for both (configured in Supabase Auth and the app), with SPF/DKIM on an Octra sending domain. Choose before the pilot. |
+| E2 | Hosting for the scanner, when scanning is switched on (D-014). | AWS Fargate London (D-013) or Fly.io London; decide when scanning is needed. |
+| E3 | Screens for the remaining phase 2 actions (see phase-2-design.md §12). | Build them alongside phase 3 (inductions), where operatives and contractor administrators first need them. |
 
 ## Open — affect later phases
 

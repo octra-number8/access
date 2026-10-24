@@ -1,4 +1,4 @@
-// Authority action codes seeded by the migrations (…_catalogue_state_machine.sql, …_phase2_catalogue.sql).
+// Authority action codes seeded by the migrations (…_catalogue_state_machine.sql, …_phase2_catalogue.sql, …_scanner.sql).
 // The database is the source of truth; this list only gives the client type safety.
 // A parity test (authz.test.ts) fails if the two drift.
 export const AUTHORITY_ACTIONS = [
@@ -77,6 +77,8 @@ export const AUTHORITY_ACTIONS = [
   "appointment_type.reject",
   "engagement.create_via_invitation",
   "relationship.create_via_invitation",
+  "document.claim_scan",
+  "scanner.heartbeat",
 ] as const;
 
 export type AuthorityAction = (typeof AUTHORITY_ACTIONS)[number];

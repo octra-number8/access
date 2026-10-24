@@ -114,7 +114,7 @@ describe("action catalogue", () => {
           ),
         ].map((m) => m[1]),
       );
-    expect(seeded.length).toBe(75);
+    expect(seeded.length).toBe(77);
     expect(new Set(seeded)).toEqual(new Set(AUTHORITY_ACTIONS));
   });
 });

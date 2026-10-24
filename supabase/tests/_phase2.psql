@@ -75,6 +75,11 @@ declare
   dt_ins uuid; dt_card uuid; rc_ins uuid; rc_card uuid; ct_ipaf uuid;
   r jsonb; tok text;
 begin
+  -- Tests 10-16 exercise the scanning path, which D-014 holds off in production. Turn it
+  -- on inside this test transaction only; test 17 covers the scanning-off behaviour.
+  insert into core.platform_setting (key, value, decision_ref)
+  values ('malware_scanning', 'required', 'test fixture: exercise the D-013 scanning path');
+
   -- Runbook step: platform service accounts.
   insert into core.service_account (auth_user_id, purpose) values (u_scanner, 'malware_scanner'), (u_notifier, 'notification_sender');
 

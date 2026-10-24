@@ -7,3 +7,9 @@ node_modules/
 # Source documents stay out of version control: they hold internal commercial,
 # competitor and founder-governance material. The register cites them by name.
 *.docx
+.next/
+next-env.d.ts
+e2e/.scanner.log
+.env.scanner.local
+.claude/settings.local.json
+*.tsbuildinfo

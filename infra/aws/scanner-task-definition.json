@@ -1,0 +1,53 @@
+{
+  "family": "octra-scanner",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "1024",
+  "memory": "4096",
+  "runtimePlatform": { "operatingSystemFamily": "LINUX", "cpuArchitecture": "ARM64" },
+  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/octra-scanner-execution",
+  "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/octra-scanner-task",
+  "containerDefinitions": [
+    {
+      "name": "clamd",
+      "image": "${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-2.amazonaws.com/octra-scanner-clamd:${CLAMD_IMAGE_TAG}",
+      "essential": true,
+      "memoryReservation": 3072,
+      "portMappings": [],
+      "healthCheck": {
+        "command": ["CMD", "clamdscan", "--ping", "1"],
+        "interval": 30, "timeout": 10, "retries": 3, "startPeriod": 600
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": { "awslogs-group": "/octra/scanner", "awslogs-region": "eu-west-2", "awslogs-stream-prefix": "clamd" }
+      }
+    },
+    {
+      "name": "worker",
+      "image": "${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-2.amazonaws.com/octra-scanner-worker:${WORKER_IMAGE_TAG}",
+      "essential": true,
+      "memoryReservation": 512,
+      "dependsOn": [{ "containerName": "clamd", "condition": "HEALTHY" }],
+      "environment": [
+        { "name": "CLAMD_HOST", "value": "127.0.0.1" },
+        { "name": "CLAMD_PORT", "value": "3310" },
+        { "name": "POLL_MS", "value": "5000" },
+        { "name": "LEASE_SECONDS", "value": "120" },
+        { "name": "HEARTBEAT_MS", "value": "60000" },
+        { "name": "SIGNATURE_MAX_AGE_HOURS", "value": "24" },
+        { "name": "DOCUMENTS_BUCKET", "value": "documents" }
+      ],
+      "secrets": [
+        { "name": "SUPABASE_URL",      "valueFrom": "arn:aws:secretsmanager:eu-west-2:${AWS_ACCOUNT_ID}:secret:octra/scanner:SUPABASE_URL::" },
+        { "name": "SUPABASE_ANON_KEY", "valueFrom": "arn:aws:secretsmanager:eu-west-2:${AWS_ACCOUNT_ID}:secret:octra/scanner:SUPABASE_ANON_KEY::" },
+        { "name": "SCANNER_EMAIL",     "valueFrom": "arn:aws:secretsmanager:eu-west-2:${AWS_ACCOUNT_ID}:secret:octra/scanner:SCANNER_EMAIL::" },
+        { "name": "SCANNER_PASSWORD",  "valueFrom": "arn:aws:secretsmanager:eu-west-2:${AWS_ACCOUNT_ID}:secret:octra/scanner:SCANNER_PASSWORD::" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": { "awslogs-group": "/octra/scanner", "awslogs-region": "eu-west-2", "awslogs-stream-prefix": "worker" }
+      }
+    }
+  ]
+}

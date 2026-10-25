@@ -3,7 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/ActionForm";
 import { Blocked, type Denial } from "@/components/Blocked";
-import { day, HOLD_STATE, isoDay, isoLastDay, JOB_STATE, type JobDetail, lastDay, nextAction, RECOMMENDATION_STATE, ROLE } from "@/lib/jobs";
+import { day, HOLD_STATE, isoDay, isoLastDay, JOB_STATE, type JobDetail, lastDay, nextAction, RECOMMENDATION_STATE, requiredClasses, ROLE } from "@/lib/jobs";
+import { PERMIT_STATE } from "@/lib/permits";
+import { startPermits } from "../../permits/actions";
 import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 import { acceptRecommendation, addExternalEvidence, cancelJob, challengeRecommendation, reviseJob } from "../actions";
@@ -21,6 +23,10 @@ export default async function Job({ params }: { params: Promise<{ id: string }> 
   if (!data?.ok) return <Blocked what="This job" denial={data as Denial} />;
   const j = data as JobDetail;
   const { data: venue } = await db.from("venue").select("customer_id").eq("id", j.venue_id).single();
+  const { data: permitRows } = await db.from("permit").select("id, kind, status, permit_class_id").eq("work_package_id", j.id).neq("status", "cancelled");
+  const { data: permitClasses } = await db.from("permit_class").select("id, name").in("id", (permitRows ?? []).map((x) => x.permit_class_id));
+  const permits = (permitRows ?? []).map((x) => ({ ...x, name: (permitClasses ?? []).find((c) => c.id === x.permit_class_id)?.name ?? "Permit" }))
+    .sort((a, b) => (a.kind === "work_approval" ? -1 : b.kind === "work_approval" ? 1 : a.name.localeCompare(b.name)));
   const party = session.organisationAdmin.some((o) => o.organisation_id === j.performing_organisation_id
     || j.revision.parties.some((p) => p.role === "commissioning" && p.organisation_id === o.organisation_id));
   const venueAdmin = Boolean(venue && session.tenantAdminCustomerIds.includes(venue.customer_id));
@@ -147,6 +153,29 @@ export default async function Job({ params }: { params: Promise<{ id: string }> 
           <details><summary>The answers given</summary>
             <ul>{j.screening.answers.map((a, i) => <li key={i}>{a.question} — <strong>{a.answer}</strong></li>)}</ul>
           </details>
+        </>
+      ) : null}
+
+      {j.status === "routed" ? (
+        <>
+          <h2>Permits</h2>
+          {permits.length === 0 ? (
+            requiredClasses(j).length === 0 ? <p>No permit is needed for the job as described.</p> : (
+              <>
+                <p>The job needs: {requiredClasses(j).join(", ")}, under one Work Approval.</p>
+                {party || venueAdmin ? (
+                  <ActionForm action={startPermits} what="Starting the permits" submitLabel="Start the permit requests">
+                    <input type="hidden" name="key" value={k()} />
+                    <input type="hidden" name="work_package_id" value={j.id} />
+                  </ActionForm>
+                ) : null}
+              </>
+            )
+          ) : (
+            <ul>{permits.map((x) => (
+              <li key={x.id}><Link href={`/permits/${x.id}`}>{x.name}</Link> — {PERMIT_STATE[x.status] ?? x.status}</li>
+            ))}</ul>
+          )}
         </>
       ) : null}
 

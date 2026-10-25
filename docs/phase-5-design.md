@@ -269,3 +269,40 @@ Implemented in `supabase/migrations/20261025000034…36`; proved by pgTAP `28_pe
 | Material change | Refused while the job has issued or active permits: they need suspension and re-issue (phase 6). | |
 
 Found and fixed while testing: zero notice treated a window that opened before the request as late; the expiry job did not check its caller when nothing was due; briefing and issue times were compared against the transaction start rather than the clock.
+
+## 16. As built (phase 5c, 25 October 2026)
+
+Screens for permits. Migration `20261025000037` adds two read functions; nothing else in the database changed.
+
+| Where | Who | What |
+|---|---|---|
+| Permit set-up (`/venue/permits`) | Tenant administrators | The working calendar (publish a version: working days, cut-off, closures, effective date, reason); every permit class with its approved configuration in plain English and a draft editor: approval route (steps, kinds, groups, "only when the job touches" a system type), notice (amount, unit, cut-off, restart on resubmission), team inductions and competencies, the two flags, both declarations, and class questions with follow-ups; propose. Restriction windows and the area occupation register. No field has a default. |
+| Job page | The job's organisation and the venue | A "Permits" section on a routed job: what it needs, "Start the permit requests", then each permit and its state. |
+| Permit page (`/permits/{id}`) | Everyone who can see it | Preparing (questions with follow-ups, window in venue time, documents), the team, notice met or not with the earliest start, submit with the declaration, answering an information request (a new version with a fresh declaration), asking for an exception, the approval route with every decision, the reviewer's decision form on open steps (outcome-led fields: scope wording, conditions with acknowledgement, information items, the external decision; the previous version's decision shown for confirmation), withdrawing one's own decision, exception decisions, the pre-issue checks with who resolves each, Issue, and history. |
+| Supervisor view, phone first (Q104) | The named supervisor and everyone who can see it | Issued or active: the state in large type; scope and limits, place, window and time left, team, conditions, exceptions, linked permits, the issuer, the stop-work rule; acceptance with each condition acknowledged, the briefing (who) and the declaration. Online only. |
+| Decisions page | Appointees | Permit configurations to approve (shown as the author sees them), open permit steps with their dates, exceptions to decide, permits approved for issue. |
+| `api.permit_detail` / `api.open_permit_steps` | Everyone who can see the permit / appointees | One read with names (never contact details) and the queue of open steps. Neither decides anything. |
+| Venue time | — | `datetime-local` inputs are read and shown in the venue's time zone (`fromVenueLocal` / `toVenueLocal`). On the night the clocks go back, an ambiguous local time is taken as the earlier instant. |
+| Demo data | — | The local seed adds an approved demo screening set, demo class configurations (marked "DEMO CONTENT … not validated"), a demo calendar, and an issuer (Ian) separate from the reviewer (Tara). |
+
+Proof: pgTAP `29_permit_reads` (787 assertions in the suite); unit tests for venue time across the October change. Browser walkthrough on the demo venue:
+- Cara started a job, screened it, and started a Work Approval with a work-at-height permit. She prepared both, named herself supervisor and submitted both.
+- Tara asked for more information on the method step and approved the Work Approval with a condition. Trying to issue it, she was refused under the four-eyes rule.
+- Cara answered as version 2 and asked for a late-notice exception.
+- Tara decided both groups in order.
+- Ian allowed the exception, which cleared the notice blocker. He issued the Work Approval, then the child.
+- Cara, at 375 px, accepted both after acknowledging the condition and recording the briefing. Both are Active.
+- The venue administrator copied the Work Approval configuration into a new draft (values pre-filled), saved it and proposed it.
+
+Fixed during the walkthrough:
+- an empty "Late notice and restrictions" heading;
+- a doubled full stop;
+- "Ask for an exception" still offered after asking;
+- the queue showing server time instead of venue time;
+- the ambiguous 01:00 on the night the clocks go back.
+
+Outstanding:
+- **Exceptions are per version:** a resubmission needs the exception asked again (as built in 5b). The page makes this visible, but the applicant must notice.
+- **Withdrawing an issued permit** is not possible: suspension is phase 6.
+- **Briefing record:** it says who was briefed, as recorded by the supervisor. Individual acknowledgement by each operative is the gate phase (7).
+- **Success messages** vanish when the decided item leaves its list (known since 2b).

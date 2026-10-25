@@ -1,11 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { ActionForm } from "@/components/ActionForm";
+import { ActionForm, type ActionResult } from "@/components/ActionForm";
 import { answersOf, isShown, type ScreeningContent } from "@/lib/screening/content";
 import { addQuestion, addRule, previewScreening, type PreviewResult } from "./actions";
 
-function AnswerChoices({ content, question, name }: { content: ScreeningContent; question: string; name: string }) {
+function AnswerChoices({ content, question, name }: { content: Pick<ScreeningContent, "questions">; question: string; name: string }) {
   const q = content.questions.find((x) => x.key === question);
   if (!q) return null;
   return (
@@ -15,11 +15,14 @@ function AnswerChoices({ content, question, name }: { content: ScreeningContent;
   );
 }
 
-export function QuestionForm({ versionId, content, newKey }: { versionId: string; content: ScreeningContent; newKey: string }) {
+export function QuestionForm({ versionId, content, newKey, action = addQuestion }: {
+  versionId: string; content: Pick<ScreeningContent, "questions">; newKey: string;
+  action?: (prev: ActionResult, form: FormData) => Promise<ActionResult>;
+}) {
   const [type, setType] = useState("yes_no");
   const [dep, setDep] = useState("");
   return (
-    <ActionForm action={addQuestion} what="Adding this question" submitLabel="Add question">
+    <ActionForm action={action} what="Adding this question" submitLabel="Add question">
       <input type="hidden" name="key" value={newKey} />
       <input type="hidden" name="version_id" value={versionId} />
       <label>Question<input name="text" required placeholder="e.g. Will the work produce heat, flame or sparks?" /></label>

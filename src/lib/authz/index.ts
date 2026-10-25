@@ -32,25 +32,25 @@ export interface AuthzAllowed {
   ok: true;
   allowed: true;
   action: AuthorityAction;
-  basis: "appointment" | "tenant_admin" | "platform_admin" | "subject";
-  actor_kind: "user" | "tenant_admin" | "platform_admin";
+  basis:
+    | "appointment" | "tenant_admin" | "platform_admin" | "subject"
+    | "organisation_admin" | "invitee" | "service" | "link_holder";
+  actor_kind: "user" | "tenant_admin" | "platform_admin" | "organisation_admin" | "service";
   actor_person_id?: string;
   acting_appointment_id?: string | null;
   acting_delegation_id?: string | null;
 }
 
+// Refusal codes come from the database. Known ones are listed for convenience; the set
+// grows with each phase, so any string is accepted.
 export type DenialCode =
-  | "unknown_action"
-  | "not_authenticated"
-  | "not_platform_admin"
-  | "not_found"
-  | "separation_of_duties"
-  | "not_tenant_admin"
-  | "not_subject"
-  | "capacity_not_valid"
-  | "capacity_selection_required"
-  | "no_covering_appointment"
-  | "idempotency_key_reused";
+  | "unknown_action" | "not_authenticated" | "not_platform_admin" | "not_found"
+  | "separation_of_duties" | "not_tenant_admin" | "not_subject" | "not_organisation_admin"
+  | "capacity_not_valid" | "capacity_selection_required" | "no_covering_appointment"
+  | "idempotency_key_reused" | "evidence_incomplete" | "person_restricted" | "organisation_restricted"
+  | "link_expired" | "link_revoked" | "link_wrong_account" | "invalid_content" | "not_ready"
+  | "retry_not_yet" | "assisted_review_required" | "too_soon"
+  | (string & {});
 
 export interface AuthzDenied {
   ok: false;

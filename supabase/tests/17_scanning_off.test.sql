@@ -51,7 +51,7 @@ select is(api.document_access(((select r ->> 'id' from t_u where name = 'ins')):
 select tests.logout();
 select throws_ok($$update core.platform_setting set value = 'off'$$, '42501', null, 'the setting cannot be edited, only superseded by migration');
 select is((select count(*)::int from information_schema.role_routine_grants
-            where grantee = 'authenticated' and routine_schema = 'api' and routine_name ilike '%setting%'), 0,
+            where grantee = 'authenticated' and routine_schema = 'api' and (routine_name ilike '%platform_setting%' or routine_name ilike '%scanning%')), 0,
   'there is no API to change it');
 
 -- A file recorded while scanning was off can still be scanned once, later.

@@ -86,6 +86,16 @@ Each entry records what was decided, by whom, and what it changes. Open items ar
 - Scanner code, tables and tests remain and keep passing (pgTAP with the setting on; end-to-end with `E2E_SCANNER=1`).
 - **Risk accepted:** files reach reviewers' computers unscanned. Mitigation: reviewers use machines with up-to-date antivirus. Customers' security questionnaires may ask about this.
 
+## D-015 — Inductions: bring OCTRA Induct's design, journey and content format into Access
+- **Date:** 25 October 2026 · **Decided by:** Wes Pierce
+- Phase 3 reuses the existing OCTRA Induct product (`~/Projects/Claude/Inductions`): its design tokens and look, its one-task-per-screen learner journey and components, and its content format (sections, blocks, questions with options and explanations, declaration).
+- It is built on Access's data model, not Induct's: completions bound to a person at a venue, course version, language and method (self, assisted, facilitated); immutable completions; venue-set pass mark, retries and validity (CLAUDE.md §2, §3, §9).
+- The two products are not integrated; Access does not depend on Induct at run time.
+
+## D-016 — Phase 3 design approved
+- **Date:** 25 October 2026 · **Decided by:** Wes Pierce
+- [phase-3-design.md](phase-3-design.md) approved with P3-1 to P3-10: split into 3a (database, API, importer) and 3b (screens, Induct look, E3 screens); learners enter by personal induction link, email code or facilitation (no anonymous public link); minimal `event` and `event_phase` now; publication by an appointed H&S authority with author and submitter excluded; assessment and validity settings required per version with no defaults; safety-critical question flag; the app takes Induct's look, light-only; typed name by default, drawn signature optional per venue; English only for now with language recorded; Induct components copied with provenance.
+
 ---
 
 ## CLAUDE.md wording — applied 24 October 2026 (approved by Wes Pierce)
@@ -139,6 +149,12 @@ repository CLAUDE.md is the controlling version.
 | E1 | Production email: invitations are sent by the app over SMTP, and Supabase Auth sends sign-in codes. Supabase's built-in mail is not for production. | One UK/EU-hosted SMTP provider for both (configured in Supabase Auth and the app), with SPF/DKIM on an Octra sending domain. Choose before the pilot. |
 | E2 | Hosting for the scanner, when scanning is switched on (D-014). | AWS Fargate London (D-013) or Fly.io London; decide when scanning is needed. |
 | E3 | Screens for the remaining phase 2 actions (see phase-2-design.md §12). | Build them alongside phase 3 (inductions), where operatives and contractor administrators first need them. |
+
+## Open — raised by the phase 3a build (see phase-3-design.md §11)
+
+| Ref | Question | Recommendation |
+|---|---|---|
+| I1 | Maximum size for induction video files. | 200 MB per video (a few minutes of 1080p). Documents and images stay at 20 MB (P2-6). |
 
 ## Open — affect later phases
 

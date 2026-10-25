@@ -1,0 +1,102 @@
+-- Phase 3 fixture, through the API on top of the phase 1 world.
+--
+-- Adds, for customer A / venue V1:
+--   t_hsa: an "H&S Authority" appointment type, proposed by a1 and approved by the root
+--          appointee (D-011), root-eligible, allowed to publish, return and withdraw
+--          inductions, facilitate and invalidate completions.
+--   u_hes/p_hes: Hester, the venue's H&S authority (root appointment ap_hes).
+--   course_core: course "CORE" with version cv1 published by Hester:
+--     modules m-one, m-two (no minimum time); questions q-a (after m-one, single choice),
+--     q-b (final, multiple select, safety-critical), q-c (final, true/false);
+--     declaration d-1, d-2; pass mark 60%, all critical required, 2 attempts, no delay,
+--     valid 365 days, typed name.
+--   link_op / tok_op: a personal link for the operative OP (op@a.test).
+
+\set QUIET on
+
+create function tests.core_content(p_min_seconds integer default 0) returns jsonb language sql immutable as $$
+  select jsonb_build_object(
+    'modules', jsonb_build_array(
+      jsonb_build_object('key', 'm-one', 'title', 'Welcome', 'kind', 'core', 'min_seconds', p_min_seconds,
+        'blocks', jsonb_build_array(jsonb_build_object('type', 'rich_text', 'text', 'Welcome to the venue.'))),
+      jsonb_build_object('key', 'm-two', 'title', 'Fire', 'kind', 'core', 'min_seconds', 0,
+        'blocks', jsonb_build_array(jsonb_build_object('type', 'callout', 'tone', 'warning', 'text', 'Never use the lifts.')))),
+    'questions', jsonb_build_array(
+      jsonb_build_object('key', 'q-a', 'placement', 'module', 'module_key', 'm-one', 'type', 'single_choice',
+        'stem', 'Who can stop unsafe work?', 'explanation', 'Anyone can stop unsafe work.', 'safety_critical', false, 'weight', 1,
+        'options', jsonb_build_array(jsonb_build_object('key', 'anyone', 'text', 'Anyone', 'correct', true),
+                                     jsonb_build_object('key', 'managers', 'text', 'Only managers', 'correct', false))),
+      jsonb_build_object('key', 'q-b', 'placement', 'final', 'module_key', 'm-two', 'type', 'multiple_select',
+        'stem', 'When the alarm sounds you…', 'explanation', 'Stop and leave by the nearest exit.', 'safety_critical', true, 'weight', 1,
+        'options', jsonb_build_array(jsonb_build_object('key', 'stop', 'text', 'Stop work', 'correct', true),
+                                     jsonb_build_object('key', 'leave', 'text', 'Leave by the nearest exit', 'correct', true),
+                                     jsonb_build_object('key', 'finish', 'text', 'Finish the task', 'correct', false))),
+      jsonb_build_object('key', 'q-c', 'placement', 'final', 'module_key', 'm-two', 'type', 'true_false',
+        'stem', 'Lifts may be used in an evacuation.', 'explanation', 'Never use lifts.', 'safety_critical', false, 'weight', 1,
+        'options', jsonb_build_array(jsonb_build_object('key', 'true', 'text', 'True', 'correct', false),
+                                     jsonb_build_object('key', 'false', 'text', 'False', 'correct', true)))),
+    'declaration', jsonb_build_array(jsonb_build_object('key', 'd-1', 'text', 'I have read and understood this induction'),
+                                     jsonb_build_object('key', 'd-2', 'text', 'I will follow the site rules'))) $$;
+
+-- Builds and publishes a version of a course (as a1, then Hester). Returns the version id.
+create function tests.publish_course(p_course uuid, p_content jsonb, p_max_attempts integer default 2,
+                                     p_retry_minutes integer default 0, p_signature text default 'typed')
+returns uuid language plpgsql as $$
+declare cv uuid;
+begin
+  perform tests.login(tests.w('u_a1'));
+  cv := tests.must(api.create_course_draft(tests.key(), p_course, 'en-GB'));
+  perform tests.must(api.save_course_draft(tests.key(), cv, tests.version('core.course_version', cv), p_content));
+  perform tests.must(api.set_course_settings(tests.key(), cv, tests.version('core.course_version', cv), 60, true,
+                                             p_max_attempts, p_retry_minutes, false, 'days_from_completion', 365, null, p_signature));
+  perform tests.must(api.submit_course_version(tests.key(), cv, tests.version('core.course_version', cv)));
+  perform tests.login(tests.w('u_hes'));
+  perform tests.must(api.decide_course_version(tests.key(), cv, tests.version('core.course_version', cv), 'publish'));
+  perform tests.logout();
+  return cv;
+end $$;
+
+create function tests.build_phase3() returns void language plpgsql as $$
+declare
+  u_hes uuid := tests.new_user('hester@a.test');
+  p_hes uuid; t_hsa uuid; tv_hsa uuid; ap_hes uuid; course uuid; cv1 uuid; r jsonb;
+begin
+  perform tests.login(tests.w('u_a1'));
+  p_hes := tests.must(api.create_person(tests.key(), tests.w('cust_a'), 'Hester', 'Safety', p_email => 'hester@a.test'));
+  perform tests.must(api.link_user_account(tests.key(), p_hes, u_hes));
+  t_hsa := tests.must(api.create_appointment_type(tests.key(), tests.w('v1'), 'HSA', 'H&S Authority'));
+  tv_hsa := tests.must(api.propose_appointment_type_version(tests.key(), t_hsa,
+    array['course_version.publish', 'course_version.return', 'course_version.withdraw', 'induction.facilitate', 'induction.invalidate'],
+    '{}', '{}', '{}', true, false, tests.w('p_a1'), now() - interval '1 minute', 'Venue H&S authority'));
+  perform tests.login(tests.w('u_r'));
+  perform tests.must(api.decide_appointment_type_version(tests.key(), tv_hsa, tests.version('core.appointment_type_version', tv_hsa), 'approve', 'Agreed'));
+  perform tests.login(tests.w('u_a1'));
+  ap_hes := tests.must(api.record_root_appointment(tests.key(), tests.w('v1'), p_hes, tests.w('p_d'), tv_hsa, '{}',
+    jsonb_build_array(jsonb_build_object('area_id', tests.w('site'))), now() - interval '1 minute', null, null, null,
+    'Letter of appointment HS-001'));
+  perform tests.login(tests.w('u_a2'));
+  perform tests.must(api.confirm_root_appointment(tests.key(), ap_hes, tests.version('core.appointment', ap_hes)));
+  perform tests.login(u_hes);
+  perform tests.must(api.acknowledge_appointment(tests.key(), ap_hes, tests.version('core.appointment', ap_hes)));
+
+  perform tests.login(tests.w('u_a1'));
+  course := tests.must(api.create_induction_course(tests.key(), tests.w('v1'), 'CORE', 'Exhibition Centre induction'));
+  perform tests.logout();
+  perform tests.set_w('u_hes', u_hes); perform tests.set_w('p_hes', p_hes); perform tests.set_w('ap_hes', ap_hes);
+  perform tests.set_w('t_hsa', t_hsa); perform tests.set_w('course_core', course);
+  cv1 := tests.publish_course(course, tests.core_content());
+  perform tests.set_w('cv1', cv1);
+
+  perform tests.login(tests.w('u_a1'));
+  r := api.issue_induction_link(tests.key(), course, tests.w('p_op'), now() + interval '14 days');
+  perform tests.must(r);
+  perform tests.set_w('link_op', (r ->> 'id')::uuid);
+  perform set_config('tests.tok_op', r ->> 'token', true);
+  perform tests.logout();
+end $$;
+
+create function tests.tok_op() returns text language sql stable as $$ select current_setting('tests.tok_op') $$;
+
+grant execute on all functions in schema tests to authenticated;
+select tests.build_phase3();
+\set QUIET off

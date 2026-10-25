@@ -110,11 +110,11 @@ describe("action catalogue", () => {
       .flatMap((f) =>
         [
           ...readFileSync(join(dir, f), "utf8").matchAll(
-            /^\s+\('([a-z_]+\.[a-z_]+)',\s*'(?:appointment|tenant_admin|platform_admin|subject|organisation_admin|invitee|service|derived)'/gm,
+            /^\s+\('([a-z_]+\.[a-z_]+)',\s*'(?:appointment|tenant_admin|platform_admin|subject|organisation_admin|invitee|service|derived|link_holder)'/gm,
           ),
         ].map((m) => m[1]),
       );
-    expect(seeded.length).toBe(77);
+    expect(seeded.length).toBe(102);
     expect(new Set(seeded)).toEqual(new Set(AUTHORITY_ACTIONS));
   });
 });

@@ -1,4 +1,4 @@
-// Authority action codes seeded by the migrations (…_catalogue_state_machine.sql, …_phase2_catalogue.sql, …_scanner.sql).
+// Authority action codes seeded by the migrations (…_catalogue_state_machine.sql, …_phase2_catalogue.sql, …_scanner.sql, …_inductions.sql).
 // The database is the source of truth; this list only gives the client type safety.
 // A parity test (authz.test.ts) fails if the two drift.
 export const AUTHORITY_ACTIONS = [
@@ -79,6 +79,31 @@ export const AUTHORITY_ACTIONS = [
   "relationship.create_via_invitation",
   "document.claim_scan",
   "scanner.heartbeat",
+  "event.create",
+  "event_phase.create",
+  "induction_media.upload",
+  "induction_course.create",
+  "course_version.create_draft",
+  "course_version.save_draft",
+  "course_version.set_settings",
+  "course_open_point.add",
+  "course_open_point.resolve",
+  "course_version.submit",
+  "induction_link.issue",
+  "induction_link.issue_for_person",
+  "induction_link.revoke",
+  "induction_link.claim",
+  "course_version.publish",
+  "course_version.return",
+  "course_version.withdraw",
+  "course_version.supersede",
+  "induction.facilitate",
+  "induction.invalidate",
+  "induction.start",
+  "induction.progress",
+  "induction.answer",
+  "induction.finish",
+  "induction.complete",
 ] as const;
 
 export type AuthorityAction = (typeof AUTHORITY_ACTIONS)[number];

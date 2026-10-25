@@ -14,6 +14,8 @@
 --     WAH: question "access" (mewp / scaffold); steps "rams" (review, group 1),
 --          "occupier" (occupier, group 1), "final" (review, group 2).
 --     HW:  one review step "hw-review" (group 1).
+--   cal1: a test calendar (Monday to Friday, 16:00 cut-off). Class configurations choose zero notice
+--   and no evidence, explicitly, as test values.
 --   tests.routed_job(areas, parties): a job by OP, screened with no recommendations and
 --   WAH selected directly, so it is routed at once needing WAH.
 
@@ -23,7 +25,11 @@ create function tests.class_config(p_route jsonb, p_questions jsonb default '[]'
   select jsonb_build_object('questions', p_questions, 'route', p_route,
     'submission_declaration', jsonb_build_array('The information in this request is accurate.', 'We will report any change before it happens.'),
     'acceptance_declaration', jsonb_build_array('I have briefed the team on the scope, limits and conditions.'),
-    'requires_physical_controls', false, 'override_prohibited', false) $$;
+    'requires_physical_controls', false, 'override_prohibited', false,
+    -- Test values only: zero notice is chosen explicitly (P5-8), never defaulted.
+    'notice', jsonb_build_object('amount', 0, 'unit', 'working_days', 'cutoff_applies', false, 'restart_on_resubmission', false),
+    'evidence', jsonb_build_object('induction_course_ids', '[]'::jsonb, 'team_competency_type_ids', '[]'::jsonb,
+                                   'supervisor_competency_type_ids', '[]'::jsonb)) $$;
 
 create function tests.configure_class(p_class uuid, p_content jsonb) returns uuid language plpgsql as $$
 declare v uuid;
@@ -46,6 +52,9 @@ begin
   pc_wah := tests.must(api.create_permit_class(tests.key(), tests.w('v1'), 'WAH', 'Work at height'));
   perform tests.set_w('pc_wa', pc_wa); perform tests.set_w('pc_wah', pc_wah);
   perform tests.must(api.record_area_occupation(tests.key(), tests.w('hall2'), tests.w('org_o2'), now() - interval '30 days', null, 'Lease HALL2'));
+  -- Test calendar: Monday to Friday, no closures, 16:00 cut-off.
+  perform tests.set_w('cal1', tests.must(api.publish_venue_calendar(tests.key(), tests.w('v1'), array[1, 2, 3, 4, 5], '{}', '16:00',
+                                                                    now() - interval '30 days', 'Test calendar')));
   t_pa := tests.must(api.create_appointment_type(tests.key(), tests.w('v1'), 'PA', 'Permits Authority'));
   tv_pa := tests.must(api.propose_appointment_type_version(tests.key(), t_pa,
     array['permit_class_version.approve', 'permit_class_version.reject', 'permit_step.decide', 'permit_step.decide_landlord',

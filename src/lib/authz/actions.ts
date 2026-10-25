@@ -163,6 +163,17 @@ export const AUTHORITY_ACTIONS = [
   "permit.refuse",
   "permit.reopen",
   "permit.return_to_draft",
+  "venue_calendar.publish",
+  "restriction_window.create",
+  "restriction_window.end",
+  "permit.request_exception",
+  "permit.request_exception_for_venue",
+  "permit.exception_decide",
+  "permit.set_team",
+  "permit.set_team_for_venue",
+  "permit.issue",
+  "permit.accept",
+  "permit.expire",
 ] as const;
 
 export type AuthorityAction = (typeof AUTHORITY_ACTIONS)[number];

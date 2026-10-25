@@ -152,7 +152,8 @@ category-specific triggers. `export` with scope, omissions and redactions record
 `Hand-back pending` -> `Closed`.
 
 Side states: `Suspended` (from `Active`, returns to `Active` only through the
-responsible authority with renewed readiness checks), `Cancelled`, `Expired`.
+responsible authority with renewed readiness checks), `Cancelled`, `Expired`, `Refused`
+(an approval step refused the request).
 `Abandoned` is a management flag on a suspended or expired job — never a closure and
 never permission to remove controls.
 

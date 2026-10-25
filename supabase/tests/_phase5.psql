@@ -1,0 +1,105 @@
+-- Phase 5 fixture, through the API on top of the phase 1 world and the phase 4 fixture.
+--
+-- Adds, for customer A / venue V1:
+--   pc_wa:  the venue's Work Approval class. pc_wah: "Work at height" (a permit class).
+--   O2 occupies HALL2 (area occupation register, P5-6).
+--   t_pa:   "Permits Authority" type: approve class configurations, decide review steps,
+--           landlord steps and external steps, require a missed class (P5-12).
+--   t_oc:   "Occupier Representative" type: decide occupier steps only.
+--   u_pam/p_pam:   PA over the whole site, classes WA, WAH, HW, EL.
+--   u_rex/p_rex:   PA over HALL1 only, class WAH only.
+--   u_olga/p_olga: OC over HALL2.
+--   Approved configurations (by Pam, drafted and proposed by a1):
+--     WA:  one review step "wa-review" (group 1).
+--     WAH: question "access" (mewp / scaffold); steps "rams" (review, group 1),
+--          "occupier" (occupier, group 1), "final" (review, group 2).
+--     HW:  one review step "hw-review" (group 1).
+--   tests.routed_job(areas, parties): a job by OP, screened with no recommendations and
+--   WAH selected directly, so it is routed at once needing WAH.
+
+\set QUIET on
+
+create function tests.class_config(p_route jsonb, p_questions jsonb default '[]') returns jsonb language sql immutable as $$
+  select jsonb_build_object('questions', p_questions, 'route', p_route,
+    'submission_declaration', jsonb_build_array('The information in this request is accurate.', 'We will report any change before it happens.'),
+    'acceptance_declaration', jsonb_build_array('I have briefed the team on the scope, limits and conditions.'),
+    'requires_physical_controls', false, 'override_prohibited', false) $$;
+
+create function tests.configure_class(p_class uuid, p_content jsonb) returns uuid language plpgsql as $$
+declare v uuid;
+begin
+  perform tests.login(tests.w('u_a1'));
+  v := tests.must(api.create_class_draft(tests.key(), p_class));
+  perform tests.must(api.save_class_draft(tests.key(), v, tests.version('core.permit_class_version', v), p_content));
+  perform tests.must(api.propose_class_version(tests.key(), v, tests.version('core.permit_class_version', v)));
+  perform tests.login(tests.w('u_pam'));
+  perform tests.must(api.decide_class_version(tests.key(), v, tests.version('core.permit_class_version', v), 'approve', 'Validated'));
+  perform tests.logout();
+  return v;
+end $$;
+
+create function tests.build_phase5() returns void language plpgsql as $$
+declare t_pa uuid; tv_pa uuid; t_oc uuid; tv_oc uuid; x uuid[]; pc_wa uuid; pc_wah uuid;
+begin
+  perform tests.login(tests.w('u_a1'));
+  pc_wa := tests.must(api.create_work_approval_class(tests.key(), tests.w('v1'), 'WA', 'Work Approval'));
+  pc_wah := tests.must(api.create_permit_class(tests.key(), tests.w('v1'), 'WAH', 'Work at height'));
+  perform tests.set_w('pc_wa', pc_wa); perform tests.set_w('pc_wah', pc_wah);
+  perform tests.must(api.record_area_occupation(tests.key(), tests.w('hall2'), tests.w('org_o2'), now() - interval '30 days', null, 'Lease HALL2'));
+  t_pa := tests.must(api.create_appointment_type(tests.key(), tests.w('v1'), 'PA', 'Permits Authority'));
+  tv_pa := tests.must(api.propose_appointment_type_version(tests.key(), t_pa,
+    array['permit_class_version.approve', 'permit_class_version.reject', 'permit_step.decide', 'permit_step.decide_landlord',
+          'permit_step.record_external', 'work_package.require_class'],
+    array[pc_wa, pc_wah, tests.w('pc_hw'), tests.w('pc_el')], '{}', '{}', true, false, tests.w('p_a1'),
+    now() - interval '1 minute', 'Permit review authority'));
+  t_oc := tests.must(api.create_appointment_type(tests.key(), tests.w('v1'), 'OC', 'Occupier Representative'));
+  tv_oc := tests.must(api.propose_appointment_type_version(tests.key(), t_oc, array['permit_step.decide_occupier'],
+    '{}', '{}', '{}', true, false, tests.w('p_a1'), now() - interval '1 minute', 'Occupier approval'));
+  perform tests.login(tests.w('u_r'));
+  perform tests.must(api.decide_appointment_type_version(tests.key(), tv_pa, tests.version('core.appointment_type_version', tv_pa), 'approve', 'Agreed'));
+  perform tests.must(api.decide_appointment_type_version(tests.key(), tv_oc, tests.version('core.appointment_type_version', tv_oc), 'approve', 'Agreed'));
+  x := tests.root_ta('pam@a.test', 'Pam', tv_pa, array[pc_wa, pc_wah, tests.w('pc_hw'), tests.w('pc_el')], tests.w('site'));
+  perform tests.set_w('u_pam', x[1]); perform tests.set_w('p_pam', x[2]); perform tests.set_w('tv_pa', tv_pa);
+  x := tests.root_ta('rex@a.test', 'Rex', tv_pa, array[pc_wah], tests.w('hall1'));
+  perform tests.set_w('u_rex', x[1]); perform tests.set_w('p_rex', x[2]);
+  x := tests.root_ta('olga@a.test', 'Olga', tv_oc, '{}', tests.w('hall2'));
+  perform tests.set_w('u_olga', x[1]); perform tests.set_w('p_olga', x[2]);
+
+  perform tests.set_w('cv_wa', tests.configure_class(pc_wa, tests.class_config(
+    '[{"key": "wa-review", "name": "Venue review of the job", "kind": "review", "group": 1}]')));
+  perform tests.set_w('cv_wah', tests.configure_class(pc_wah, tests.class_config(
+    '[{"key": "rams", "name": "RAMS review", "kind": "review", "group": 1},
+      {"key": "occupier", "name": "Occupier approval", "kind": "occupier", "group": 1},
+      {"key": "final", "name": "Final review", "kind": "review", "group": 2}]',
+    '[{"key": "access", "text": "How will people reach the work?", "type": "choose_one",
+       "options": [{"key": "mewp", "text": "MEWP"}, {"key": "scaffold", "text": "Scaffold"}]}]')));
+  perform tests.set_w('cv_hw', tests.configure_class(tests.w('pc_hw'), tests.class_config(
+    '[{"key": "hw-review", "name": "Hot works review", "kind": "review", "group": 1}]')));
+  perform tests.logout();
+end $$;
+
+-- A routed job needing WAH, by OP. Areas default to HALL1 and HALL2 with O2 as the affected occupier.
+create function tests.routed_job(p_areas uuid[] default null, p_parties jsonb default null) returns uuid language plpgsql as $$
+declare wp uuid; input jsonb;
+begin
+  input := tests.wp_input(
+    p_areas => coalesce(p_areas, array[tests.w('hall1'), tests.w('hall2')]),
+    p_title => 'Replace lamps',
+    p_supervisor => tests.w('p_op'),
+    p_parties => coalesce(p_parties, jsonb_build_array(jsonb_build_object('organisation_id', tests.w('org_o2'), 'role', 'affected_occupier'))));
+  wp := tests.new_job(input);
+  perform tests.must(tests.answer_and_submit(wp, tests.no_to_all(), array[tests.w('pc_wah')]));
+  return wp;
+end $$;
+
+create function tests.permit_of(p_wp uuid, p_class uuid) returns uuid language sql stable security definer as $$
+  select id from core.permit where work_package_id = p_wp and permit_class_id = p_class and status <> 'cancelled' $$;
+create function tests.step_of(p_permit uuid, p_key text) returns uuid language sql stable security definer as $$
+  select s.id from core.permit_step s join core.permit p on p.current_version_id = s.permit_version_id
+   where p.id = p_permit and s.step_key = p_key $$;
+create function tests.status_of(p_permit uuid) returns text language sql stable security definer as $$
+  select status from core.permit where id = p_permit $$;
+
+grant execute on all functions in schema tests to authenticated;
+select tests.build_phase5();
+\set QUIET off

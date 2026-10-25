@@ -102,6 +102,10 @@ Each entry records what was decided, by whom, and what it changes. Open items ar
 
 ---
 
+## D-018 — Phase 5 design approved
+- **Date:** 25 October 2026 · **Decided by:** Wes Pierce
+- [phase-5-design.md](phase-5-design.md) approved with P5-1 to P5-12: split into 5a (permits, class configuration, approval routes, information requests), 5b (calendars, notice, exceptions, team, issue, acceptance) and 5c (screens); one Work Approval per job needing any permit, with each required class a linked child permit; `Refused` added as a permit side state (CLAUDE.md §4 amended); the parent/child rules of invariant 4 as a database trigger; approved, versioned class configuration with no defaults before a class can be used; occupier and landlord approval through venue appointments scoped to the demise or system, with a venue-kept area occupation register and venue-named parties (settles P4-9); every step re-confirms on a resubmitted version; calendars, notice rules and restriction windows are configuration with no defaults; late notice and restriction clashes in phase 5, emergency and urgent make-safe work in phase 6; four-eyes issue, not before the window's first day; classes needing physical controls not issued until phase 6; an appointed authority can require a class screening missed (settles P4-10).
+
 ## CLAUDE.md wording — applied 24 October 2026 (approved by Wes Pierce)
 
 Applied verbatim to CLAUDE.md §2, §3, §4, §5 and §8. The copy of CLAUDE.md inside
@@ -164,8 +168,8 @@ repository CLAUDE.md is the controlling version.
 
 | Ref | Question | Recommendation |
 |---|---|---|
-| P4-9 | How are other parties (commissioning, principal contractor, affected occupier, landlord/operator) named on a job? A contractor-facing list of organisations would disclose who is engaged at the venue. | The venue names them: tenant administrators add parties on the job page; contractors see the parties' names on their own jobs but never a list of the venue's organisations. Revisit with the privacy adviser (G11) and when approval routes need occupiers (phase 5, Q77–Q78). |
-| P4-10 | Can the venue's authority require a permit that screening missed, on a job already in screening? | Yes, in phase 5: an appointment-based "require a class" decision with a reason, which adds an accepted recommendation and is recorded against the authority. Until then the applicant changes the job and selects the class. |
+| P4-9 (settled by D-018, P5-6) | How are other parties (commissioning, principal contractor, affected occupier, landlord/operator) named on a job? A contractor-facing list of organisations would disclose who is engaged at the venue. | The venue names them: tenant administrators add parties on the job page; contractors see the parties' names on their own jobs but never a list of the venue's organisations. Revisit with the privacy adviser (G11) and when approval routes need occupiers (phase 5, Q77–Q78). |
+| P4-10 (settled by D-018, P5-12) | Can the venue's authority require a permit that screening missed, on a job already in screening? | Yes, in phase 5: an appointment-based "require a class" decision with a reason, which adds an accepted recommendation and is recorded against the authority. Until then the applicant changes the job and selects the class. |
 
 ## Open — affect later phases
 

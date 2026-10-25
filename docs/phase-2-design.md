@@ -177,7 +177,7 @@ Implemented in `supabase/migrations/20261024000013…18`; proved by `supabase/te
 - Raw constraint text reached the screen; pages did not refresh after actions; "Decline" looked like "Accept".
 
 **Not built in 2b (API exists and is tested; no screens yet)**
-Deputy and accountable-administrator changes, accepting or declining an administrator-recorded relationship, facilitated acceptance, competency declaration and verification, restrictions, appointment-type proposals and approval, resolving a duplicate organisation, cancelling invitations, the scanner-status view for operations. There are no buttons for these yet, rather than buttons that do nothing.
+Deputy and accountable-administrator changes, accepting or declining an administrator-recorded relationship, facilitated acceptance, competency declaration and verification, restrictions, appointment-type proposals and approval, resolving a duplicate organisation, cancelling invitations, the scanner-status view for operations. There are no buttons for these yet, rather than buttons that do nothing. **Built in phase 3b-2** (see phase-3-design.md §13).
 
 **Known gaps**
 - The approval confirmation disappears when the approved item leaves the list (the result is correct; the feedback is lost).

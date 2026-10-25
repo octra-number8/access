@@ -152,3 +152,24 @@ Screens for authoring, publishing, personal links, the learner journey and facil
 | Sign in | The code form reuses the address typed for the code | The address is never put in the URL. |
 | Validation messages | Name sections by title; "The image in …" | Restated `core.validate_course_content` in 0025; checks unchanged. |
 | Drawn signature | Not offered | Only "typed" can be chosen until a drawn signature is stored as evidence **[outstanding]**. |
+
+## 13. As built (phase 3b-2, 25 October 2026)
+
+Screens for the phase 2 actions that had an API but no screen (E3). Each screen shows a control only to the role it belongs to; the database still decides every action, and a refusal states what, why, what is missing and who can resolve it.
+
+| Where | Who | What |
+|---|---|---|
+| Organisation page | Contractor administrators | Name or remove the deputy; hand over the accountable role; end a person's relationship; declare a competency for one of their people (optional supporting document); cancel a pending person invitation. Upload and invite are shown only to them. |
+| Organisation page | Tenant administrators | Set the accountable administrator (C1 route); record someone without a login, whose relationship then waits; record that person's facilitated acceptance with a note of how it was obtained; end a relationship administratively. |
+| Your details (`/me`) | Anyone with a person record | Accept or decline a relationship an administrator recorded; end their own relationship (Q40); declare their own competency; see each competency with the venue's check, if any. |
+| Venue administration | Tenant administrators | Organisations list with links; resolve a duplicate company number by linking or setting up separately, seeing what the acceptor entered (Q26); cancel organisation invitations; competency types; appointment types with each version's state and decision, new types, and proposing a version (direct publication offered only while the venue has no root appointment, D-011). |
+| Decisions (`/review`) | Appointees | Record a competency check (method, source, holder match, scope, outcome); approve or reject a proposed appointment type version; restrict a person or organisation and lift restrictions (D-010). |
+| Platform operations (`/operations`) | Platform administrators | Platform settings and scanner health, read-only. |
+
+Migration `20261025000026`: `api.appointment_type_version` restated (its `select *` had fixed the column list before the D-011 columns existed); `api.invitation` gains `acceptance_details` (the table grant already allowed it; the token hash stays hidden); `api.am_platform_admin()`; `api.verify_competency` refuses a confirmed check without a matching holder in words rather than by the table constraint alone.
+
+Proof: pgTAP `21_e3_screen_support` and the updated `13_competency` (523 assertions in the suite); a deliberate weakening of the platform-administrator check was caught. Browser walkthrough as the venue administrator, the contractor administrator, the contractor as a person, the authorising engineer and the platform administrator, including refusals: a facilitation note under 10 characters, a confirmed check without a holder match, an appointee restricting themself, a tenant administrator opening platform operations.
+
+Also in 3b-2: sign out moved into the header on every page; database refusals shown as sentences; the version page's "All inductions" link goes to the decisions page for reviewers who are not administrators.
+
+Not walked through in the browser: accepting or declining a relationship as the person (no seeded person with a login has a waiting relationship; pgTAP `11_contractor_admin` covers it).

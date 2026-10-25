@@ -31,7 +31,8 @@ select is(api.verify_competency(tests.key(), tests.w('comp_own'), 'issuer_regist
 select tests.login(tests.w('u_r'));
 select throws_ok(format($$select api.verify_competency(%L, %L, 'issuer_register', 'IPAF online register', false, 'MEWP 3a/3b', null, 'verified')$$,
                         tests.key(), tests.w('comp_own')),
-  '23514', null, 'a competency cannot be verified if the holder does not match');
+  '22023', 'a check can be recorded as confirmed only when the card or certificate holder matches the person',
+  'a competency cannot be verified if the holder does not match, and the refusal says why');
 select tests.logout();
 
 -- ---- Appointments check the appointee's required, verified evidence ------------

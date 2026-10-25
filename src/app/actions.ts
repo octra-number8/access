@@ -6,50 +6,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ActionResult } from "@/components/ActionForm";
-import { ConflictError, write } from "@/lib/authz";
+import { write } from "@/lib/authz";
+import { failure, optional, run, safeNext, text } from "@/lib/action-helpers";
 import { uploadDocument } from "@/lib/documents";
 import { serverEnv } from "@/lib/env";
 import { sendMail } from "@/lib/mail";
 import { supabaseServer } from "@/lib/supabase/server";
-
-function text(form: FormData, name: string): string {
-  return String(form.get(name) ?? "").trim();
-}
-function optional(form: FormData, name: string): string | null {
-  return text(form, name) || null;
-}
-function safeNext(next: string): string {
-  // Only same-site relative paths, never another origin.
-  return next.startsWith("/") && !next.startsWith("//") ? next : "/";
-}
-
-async function run(fn: string, args: Record<string, unknown>, done: string): Promise<ActionResult> {
-  const db = await supabaseServer();
-  try {
-    const r = await write(db, fn, args as Record<string, unknown> & { p_idempotency_key: string });
-    if (!r.ok) return r as ActionResult;
-    revalidatePath("/", "layout");
-    return { ok: true, message: r.replayed ? `${done} (already done).` : `${done}.` };
-  } catch (e) {
-    return failure(e);
-  }
-}
-
-function failure(e: unknown): ActionResult {
-  if (e instanceof ConflictError) {
-    return { ok: false, code: "conflict", reason: "This record changed since you opened it.",
-             missing: "The latest version of the page", resolvable_by: "You: refresh and try again" };
-  }
-  const message = (e as Error).message ?? "";
-  // Never show raw database errors (internal names, constraint text). Messages the
-  // database functions raise deliberately are written for people and pass through.
-  if (/violates|constraint|relation "|column "|syntax|permission denied|function .* does not exist/i.test(message)) {
-    console.error("refused by a data rule:", message);
-    return { ok: false, code: "data_rule", reason: "This was refused by one of the system's data rules.",
-             missing: "A request that meets the rules", resolvable_by: "You, or Octra support if it keeps happening" };
-  }
-  return { ok: false, code: "error", reason: message, missing: "A valid request", resolvable_by: "You, or Octra support" };
-}
 
 // ---- Sign-in (6-digit code, works across devices) -----------------------------------
 

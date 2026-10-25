@@ -6,7 +6,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/components/ActionForm";
-import { ConflictError, write } from "@/lib/authz";
+import { failure } from "@/lib/action-helpers";
+import { write } from "@/lib/authz";
 import type { CourseContent } from "@/lib/induction/content";
 import { fromInductStarter, parseBrief } from "@/lib/induction/import";
 import { maxInductionMediaBytes, sniffInductionMedia } from "@/lib/induction/media";
@@ -17,18 +18,6 @@ import { supabaseServer } from "@/lib/supabase/server";
 
 const t = (f: FormData, n: string) => String(f.get(n) ?? "").trim();
 const opt = (f: FormData, n: string) => t(f, n) || null;
-
-function failure(e: unknown): ActionResult {
-  if (e instanceof ConflictError) {
-    return { ok: false, code: "conflict", reason: "This changed since you opened it.", missing: "The latest version of the page", resolvable_by: "You: refresh and try again" };
-  }
-  const message = (e as Error).message ?? "";
-  if (/violates|constraint|relation "|column "|syntax|permission denied/i.test(message)) {
-    console.error("refused by a data rule:", message);
-    return { ok: false, code: "data_rule", reason: "This was refused by one of the system's data rules.", missing: "A request that meets the rules", resolvable_by: "You, or Octra support if it keeps happening" };
-  }
-  return { ok: false, code: "error", reason: message, missing: "A valid request", resolvable_by: "You, or Octra support" };
-}
 
 /** Problems from the database (content checks, readiness) are listed under the reason. */
 function withProblems(r: { ok: false; reason: string; problems?: string[] } & Record<string, unknown>): ActionResult {

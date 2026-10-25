@@ -14,7 +14,8 @@ export const metadata = { title: "Induction version" };
 
 export default async function Version({ params }: { params: Promise<{ versionId: string }> }) {
   const { versionId } = await params;
-  if (!(await getSession())) redirect(`/sign-in?next=/venue/inductions/${versionId}`);
+  const session = await getSession();
+  if (!session) redirect(`/sign-in?next=/venue/inductions/${versionId}`);
   const db = await supabaseServer();
   const { data: cc } = await db.rpc("course_content", { p_version_id: versionId });
   if (!cc?.ok) return <Blocked what="This induction" denial={cc as Denial} />;
@@ -30,7 +31,8 @@ export default async function Version({ params }: { params: Promise<{ versionId:
 
   return (
     <>
-      <p><Link href="/venue/inductions">All inductions</Link></p>
+      <p>{session.tenantAdminCustomerIds.includes(v!.customer_id)
+        ? <Link href="/venue/inductions">All inductions</Link> : <Link href="/review">Decisions waiting for you</Link>}</p>
       <h1>{course?.title} — version {v!.version_no}</h1>
       <p>Recorded state: <strong>{v!.status.replace("_", " ")}</strong>{v!.return_reason && draft ? <> · Returned: {v!.return_reason}</> : null}</p>
 

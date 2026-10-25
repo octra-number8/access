@@ -107,7 +107,10 @@ await must(await signIn(taraLogin), "acknowledge_appointment", { p_idempotency_k
 // routes, declarations and notice are not validated by any technical authority.
 const isType = await must(a1, "create_appointment_type", { p_idempotency_key: key(), p_venue_id: v.venueId, p_code: "IS", p_name: "Permit Issuer" });
 const isVersion = await must(a1, "propose_appointment_type_version", {
-  p_idempotency_key: key(), p_appointment_type_id: isType.id, p_allowed_action_codes: ["permit.issue", "permit.exception_decide"],
+  p_idempotency_key: key(), p_appointment_type_id: isType.id, p_allowed_action_codes: ["permit.issue", "permit.exception_decide",
+    // Phase 6a live control.
+    "permit.stop_as_authority", "permit.lift_suspension", "permit.extend", "permit.approve_worker",
+    "permit.exclude_worker_as_authority", "permit.change_supervisor"],
   p_eligible_permit_class_ids: classIds, p_eligible_system_type_ids: [], p_grantable_type_ids: [],
   p_is_root_eligible: true, p_requires_competence_evidence: false, p_owner_person_id: a1p!.person_id,
   p_effective_from: new Date(Date.now() - 60_000).toISOString(), p_change_reason: "Permit issue",
@@ -138,6 +141,8 @@ const demoConfig = (route: unknown[], notice: number, controls: boolean, questio
   requires_physical_controls: controls, override_prohibited: false,
   notice: { amount: notice, unit: "working_days", cutoff_applies: true, restart_on_resubmission: false },
   evidence: { induction_course_ids: [], team_competency_type_ids: [], supervisor_competency_type_ids: [] },
+  // Demo live rules only: the venue must choose its own (P6-5 to P6-7).
+  extension: { max_count: 1, max_total_hours: 4 }, worker_add: "issuer_approval", revalidation: { mode: "none" },
 });
 const tara2 = await signIn(taraLogin);
 // The starter screening set (P4-2), approved for local testing only.

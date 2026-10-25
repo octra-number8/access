@@ -151,9 +151,7 @@ select is(tests.status_of(tests.w('wah')), 'issued_awaiting_acceptance', 'then t
 select tests.login(tests.w('u_op'));
 select is(api.set_permit_team(tests.key(), tests.w('wah'), jsonb_build_array(jsonb_build_object('person_id', tests.w('p_op'), 'role', 'supervisor'))) ->> 'code',
   'not_open', 'the team is frozen once the permit is issued');
-select is(api.revise_work_package(tests.key(), tests.w('wp'), tests.version('core.work_package', tests.w('wp')),
-  tests.wp_input(p_areas => array[tests.w('hall2')], p_title => 'Lamps today', p_supervisor => tests.w('p_op')), 'Move to Hall 2') ->> 'code',
-  'permits_issued', 'a material change is refused while the job has issued permits (phase 6 suspends them)');
+-- A material change with issued permits now suspends them for reissue: see 30_live_permits.
 
 -- ---- Acceptance (Q100-Q103) ---------------------------------------------------------------------
 select tests.logout();

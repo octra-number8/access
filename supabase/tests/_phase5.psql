@@ -29,7 +29,11 @@ create function tests.class_config(p_route jsonb, p_questions jsonb default '[]'
     -- Test values only: zero notice is chosen explicitly (P5-8), never defaulted.
     'notice', jsonb_build_object('amount', 0, 'unit', 'working_days', 'cutoff_applies', false, 'restart_on_resubmission', false),
     'evidence', jsonb_build_object('induction_course_ids', '[]'::jsonb, 'team_competency_type_ids', '[]'::jsonb,
-                                   'supervisor_competency_type_ids', '[]'::jsonb)) $$;
+                                   'supervisor_competency_type_ids', '[]'::jsonb),
+    -- Live rules (phase 6a), also chosen explicitly as test values.
+    'extension', jsonb_build_object('max_count', 0, 'max_total_hours', 0),
+    'worker_add', 'supervisor',
+    'revalidation', jsonb_build_object('mode', 'none')) $$;
 
 create function tests.configure_class(p_class uuid, p_content jsonb) returns uuid language plpgsql as $$
 declare v uuid;

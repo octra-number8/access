@@ -151,9 +151,11 @@ category-specific triggers. `export` with scope, omissions and redactions record
 `Under review`) -> `Approved for issue` -> `Issued awaiting acceptance` -> `Active` ->
 `Hand-back pending` -> `Closed`.
 
-Side states: `Suspended` (from `Active`, returns to `Active` only through the
-responsible authority with renewed readiness checks), `Cancelled`, `Expired`, `Refused`
-(an approval step refused the request).
+Side states: `Suspended` (from `Active` or `Issued awaiting acceptance`; returns to
+`Active` only through the responsible authority with renewed readiness checks, or to
+`Submitted` when a material change requires a reissue), `Cancelled`, `Expired`, `Refused`
+(an approval step refused the request). A suspended or expired permit with outstanding
+duties closes out through `Hand-back pending`.
 `Abandoned` is a management flag on a suspended or expired job — never a closure and
 never permission to remove controls.
 

@@ -114,7 +114,8 @@ export default async function PermitSetup() {
             {current?.status === "draft" ? (
               <div className="stack">
                 <h3>Draft version {current.version_no}</h3>
-                <ConfigForm versionId={current.id} config={current.content as ClassConfig} newKey={k()}
+                {/* Keyed on the saved version, so the fields show what was saved rather than the form's reset values. */}
+                <ConfigForm key={`${current.id}:${current.row_version}`} versionId={current.id} config={current.content as ClassConfig} newKey={k()}
                   systemTypes={systemTypes.data ?? []} courses={courses.data ?? []} competencies={competencies.data ?? []} />
                 <h4>Questions for the applicant</h4>
                 <ul>{(current.content as ClassConfig).questions.map((q) => (

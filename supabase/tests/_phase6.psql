@@ -1,0 +1,168 @@
+-- Phase 6 fixture, through the API on top of the phase 5 fixture.
+--
+-- Adds, for customer A / venue V1:
+--   t_is "Permit Issuer": issue, exceptions, stop as an authority, lift suspensions, extend,
+--        approve additions, remove people, change the supervisor.
+--        u_ivy/p_ivy over the whole site for WA, WAH, HW; u_isla/p_isla over HALL1 only.
+--   t_va "Venue Authority": stop and lift area stops, stop as an authority. u_vic/p_vic, site.
+--   u_orla/p_orla: accountable administrator of O2 (the occupier on live jobs).
+--   p_owen (operative, no account), u_nia/p_nia (operative with an account), both with O.
+--   Configurations (test values, chosen explicitly):
+--     WA:  extension 2 times / 48 hours; the supervisor adds people; no revalidation.
+--     WAH: extension once / 24 hours; an issuer approves additions; revalidation every 4 hours.
+--   u_exp: the expiry service.
+--   tests.live_job(title): a job in HALL1 and HALL2 for today (O2 the affected occupier),
+--     whose Work Approval and work-at-height permit are issued by Ivy and accepted by OP:
+--     both Active. Permits run for a day; the job for two.
+
+\set QUIET on
+
+create function tests.build_phase6() returns void language plpgsql as $$
+declare t_is uuid; tv_is uuid; t_va uuid; tv_va uuid; x uuid[]; rel uuid; p uuid; u uuid;
+begin
+  perform tests.login(tests.w('u_a1'));
+  t_is := tests.must(api.create_appointment_type(tests.key(), tests.w('v1'), 'IS', 'Permit Issuer'));
+  tv_is := tests.must(api.propose_appointment_type_version(tests.key(), t_is,
+    array['permit.issue', 'permit.exception_decide', 'permit.stop_as_authority', 'permit.lift_suspension', 'permit.extend',
+          'permit.approve_worker', 'permit.exclude_worker_as_authority', 'permit.change_supervisor'],
+    array[tests.w('pc_wa'), tests.w('pc_wah'), tests.w('pc_hw')], '{}', '{}', true, false, tests.w('p_a1'),
+    now() - interval '1 minute', 'Permit issue and live control'));
+  t_va := tests.must(api.create_appointment_type(tests.key(), tests.w('v1'), 'VA', 'Venue Authority'));
+  tv_va := tests.must(api.propose_appointment_type_version(tests.key(), t_va,
+    array['permit.stop_area', 'permit.lift_area_stop', 'permit.stop_as_authority'],
+    array[tests.w('pc_wa'), tests.w('pc_wah'), tests.w('pc_hw')], '{}', '{}', true, false, tests.w('p_a1'),
+    now() - interval '1 minute', 'Venue operations authority'));
+  perform tests.login(tests.w('u_r'));
+  perform tests.must(api.decide_appointment_type_version(tests.key(), tv_is, tests.version('core.appointment_type_version', tv_is), 'approve', 'Agreed'));
+  perform tests.must(api.decide_appointment_type_version(tests.key(), tv_va, tests.version('core.appointment_type_version', tv_va), 'approve', 'Agreed'));
+  x := tests.root_ta('ivy@a.test', 'Ivy', tv_is, array[tests.w('pc_wa'), tests.w('pc_wah'), tests.w('pc_hw')], tests.w('site'));
+  perform tests.set_w('u_ivy', x[1]); perform tests.set_w('p_ivy', x[2]);
+  x := tests.root_ta('isla@a.test', 'Isla', tv_is, array[tests.w('pc_wa'), tests.w('pc_wah')], tests.w('hall1'));
+  perform tests.set_w('u_isla', x[1]); perform tests.set_w('p_isla', x[2]);
+  x := tests.root_ta('vic@a.test', 'Vic', tv_va, array[tests.w('pc_wa'), tests.w('pc_wah'), tests.w('pc_hw')], tests.w('site'));
+  perform tests.set_w('u_vic', x[1]); perform tests.set_w('p_vic', x[2]);
+
+  -- People.
+  perform tests.login(tests.w('u_a1'));
+  p := tests.must(api.create_person(tests.key(), tests.w('cust_a'), 'Owen', 'Operative'));
+  rel := tests.must(api.record_person_organisation(tests.key(), p, tests.w('org_o'), 'employee', now() - interval '1 day'));
+  perform tests.must(api.confirm_relationship_facilitated(tests.key(), rel, tests.version('core.person_organisation_relationship', rel), 'Confirmed in person'));
+  perform tests.set_w('p_owen', p);
+  u := tests.new_user('nia@a.test');
+  perform tests.login(tests.w('u_a1'));
+  p := tests.must(api.create_person(tests.key(), tests.w('cust_a'), 'Nia', 'Operative', p_email => 'nia@a.test'));
+  perform tests.must(api.link_user_account(tests.key(), p, u));
+  rel := tests.must(api.record_person_organisation(tests.key(), p, tests.w('org_o'), 'employee', now() - interval '1 day'));
+  perform tests.must(api.confirm_relationship_facilitated(tests.key(), rel, tests.version('core.person_organisation_relationship', rel), 'Confirmed in person'));
+  perform tests.set_w('p_nia', p); perform tests.set_w('u_nia', u);
+  u := tests.new_user('orla@o2.test');
+  perform tests.login(tests.w('u_a1'));
+  p := tests.must(api.create_person(tests.key(), tests.w('cust_a'), 'Orla', 'Occupier', p_email => 'orla@o2.test'));
+  perform tests.must(api.link_user_account(tests.key(), p, u));
+  rel := tests.must(api.record_person_organisation(tests.key(), p, tests.w('org_o2'), 'employee', now() - interval '1 day'));
+  perform tests.must(api.confirm_relationship_facilitated(tests.key(), rel, tests.version('core.person_organisation_relationship', rel), 'Confirmed in person'));
+  perform tests.must(api.set_accountable_admin(tests.key(), tests.w('org_o2'), p));
+  perform tests.set_w('p_orla', p); perform tests.set_w('u_orla', u);
+
+  -- Live rules for the two classes used.
+  perform tests.set_w('cv_wa6', tests.configure_class(tests.w('pc_wa'), tests.class_config(
+    '[{"key": "wa-review", "name": "Venue review of the job", "kind": "review", "group": 1}]')
+    || '{"extension": {"max_count": 2, "max_total_hours": 48}, "worker_add": "supervisor", "revalidation": {"mode": "none"}}'));
+  perform tests.set_w('cv_wah6', tests.configure_class(tests.w('pc_wah'), tests.class_config(
+    '[{"key": "rams", "name": "RAMS review", "kind": "review", "group": 1},
+      {"key": "occupier", "name": "Occupier approval", "kind": "occupier", "group": 1}]',
+    '[{"key": "access", "text": "How will people reach the work?", "type": "choose_one",
+       "options": [{"key": "mewp", "text": "MEWP"}, {"key": "scaffold", "text": "Scaffold"}]}]')
+    || '{"extension": {"max_count": 1, "max_total_hours": 24}, "worker_add": "issuer_approval", "revalidation": {"mode": "interval", "every_hours": 4}}'));
+
+  perform tests.logout();
+  perform tests.set_w('u_exp', tests.new_user('expiry@octra.test'));
+  insert into core.service_account (auth_user_id, purpose) values (tests.w('u_exp'), 'permit_expiry');
+end $$;
+
+-- A job for today: window from an hour ago to two days ahead, O2 the affected occupier.
+create function tests.today_job(p_title text, p_selected uuid[]) returns uuid language plpgsql as $$
+declare wp uuid;
+begin
+  wp := tests.new_job(jsonb_set(jsonb_set(tests.wp_input(p_areas => array[tests.w('hall1'), tests.w('hall2')], p_title => p_title,
+          p_supervisor => tests.w('p_op'),
+          p_parties => jsonb_build_array(jsonb_build_object('organisation_id', tests.w('org_o2'), 'role', 'affected_occupier'))),
+          '{window_from}', to_jsonb((now() - interval '1 hour')::text)), '{window_to}', to_jsonb((now() + interval '2 days')::text)));
+  perform tests.must(tests.answer_and_submit(wp, tests.no_to_all(), p_selected));
+  perform tests.login(tests.w('u_op'));
+  perform tests.must(api.start_permits(tests.key(), wp));
+  perform tests.logout();
+  return wp;
+end $$;
+
+-- Prepares (for a day), teams, submits and has every step decided favourably, with an
+-- acknowledged condition each: occupier steps by Olga, the rest by Pam.
+create function tests.approve_permit(p_permit uuid, p_answers jsonb) returns void language plpgsql as $$
+declare s record;
+begin
+  perform tests.login(tests.w('u_op'));
+  perform tests.must(api.save_permit_draft(tests.key(), p_permit, p_answers, now() - interval '1 hour', now() + interval '1 day'));
+  perform tests.must(api.set_permit_team(tests.key(), p_permit, jsonb_build_array(
+    jsonb_build_object('person_id', tests.w('p_op'), 'role', 'supervisor'), jsonb_build_object('person_id', tests.w('p_owen'), 'role', 'operative'))));
+  perform tests.must(api.submit_permit(tests.key(), p_permit, tests.version('core.permit', p_permit)));
+  for s in select ps.id, ps.step_key, ps.kind from core.permit_step ps join core.permit p on p.current_version_id = ps.permit_version_id
+            where p.id = p_permit order by ps.group_no, ps.step_key loop
+    perform tests.login(case when s.kind = 'occupier' then tests.w('u_olga') else tests.w('u_pam') end);
+    perform tests.must(api.decide_step(tests.key(), s.id, 'conditions', 'Reviewed', 'Reviewed for the stated work',
+      jsonb_build_array(jsonb_build_object('text', 'Barrier the work area (' || s.step_key || ')', 'acknowledge', true))));
+  end loop;
+  perform tests.logout();
+end $$;
+
+-- The conditions to acknowledge at acceptance, from the issue snapshot.
+create function tests.conditions_of(p_permit uuid) returns uuid[] language sql stable security definer as $$
+  select coalesce(array_agg((k ->> 'id')::uuid), '{}') from core.permit p join core.issue_snapshot s on s.id = p.issue_snapshot_id,
+         jsonb_array_elements(s.content -> 'steps') st, jsonb_array_elements(coalesce(st #> '{decision,conditions}', '[]')) k
+   where p.id = p_permit and (k ->> 'acknowledge')::boolean $$;
+
+-- Lifts whose conditions the supervisor must acknowledge on re-acceptance.
+create function tests.open_lifts(p_permit uuid) returns uuid[] language sql stable security definer as $$
+  select coalesce(array_agg(id), '{}') from core.permit_open_lifts(p_permit) $$;
+
+create function tests.issue_and_accept(p_permit uuid) returns void language plpgsql as $$
+begin
+  perform tests.login(tests.w('u_ivy'));
+  perform tests.must(api.issue_permit(tests.key(), p_permit, tests.version('core.permit', p_permit)));
+  perform tests.login(tests.w('u_op'));
+  perform tests.must(api.accept_permit(tests.key(), p_permit, tests.version('core.permit', p_permit), tests.conditions_of(p_permit),
+                                       array[tests.w('p_op'), tests.w('p_owen')], clock_timestamp()));
+  perform tests.logout();
+end $$;
+
+create function tests.live_job(p_title text) returns uuid language plpgsql as $$
+declare wp uuid;
+begin
+  wp := tests.today_job(p_title, array[tests.w('pc_wah')]);
+  perform tests.approve_permit(tests.permit_of(wp, tests.w('pc_wa')), '{}');
+  perform tests.approve_permit(tests.permit_of(wp, tests.w('pc_wah')), '{"access": ["mewp"]}');
+  perform tests.issue_and_accept(tests.permit_of(wp, tests.w('pc_wa')));
+  perform tests.issue_and_accept(tests.permit_of(wp, tests.w('pc_wah')));
+  return wp;
+end $$;
+
+-- Re-acceptance by the supervisor (OP by default), acknowledging everything, briefed now.
+create function tests.reaccept(p_permit uuid, p_supervisor uuid default null) returns jsonb language plpgsql as $$
+declare r jsonb;
+begin
+  perform tests.login(coalesce(p_supervisor, tests.w('u_op')));
+  r := api.reaccept_permit(tests.key(), p_permit, tests.version('core.permit', p_permit), tests.conditions_of(p_permit),
+                           tests.open_lifts(p_permit), array[tests.w('p_op')], clock_timestamp());
+  return r;
+end $$;
+
+create function tests.window_end(p_permit uuid) returns timestamptz language sql stable security definer as $$
+  select core.permit_window_end(p_permit) $$;
+
+-- The suspensions holding a permit, by kind.
+create function tests.holding(p_permit uuid) returns text[] language sql stable security definer as $$
+  select coalesce(array_agg(kind order by kind), '{}') from core.permit_suspension s
+   where s.permit_id = p_permit and core.suspension_holding(s.id) $$;
+
+grant execute on all functions in schema tests to authenticated;
+select tests.build_phase6();
+\set QUIET off

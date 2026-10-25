@@ -71,6 +71,19 @@ export async function saveClassSettings(_: ActionResult, f: FormData): Promise<A
     if (controls === undefined) delete next.requires_physical_controls; else next.requires_physical_controls = controls;
     if (prohibited === undefined) delete next.override_prohibited; else next.override_prohibited = prohibited;
     if (notice) next.notice = notice; else delete next.notice;
+    // Live rules (P6-5 to P6-7): left blank means not chosen; the database refuses approval until each is.
+    const count = text(f, "extension_count"), hours = text(f, "extension_hours");
+    if (count === "" && hours === "") delete next.extension;
+    else if (count === "" || hours === "") return "Give both the number of extensions and the total hours (zero for none).";
+    else next.extension = { max_count: Number(count), max_total_hours: Number(hours) };
+    const add = text(f, "worker_add");
+    if (add === "supervisor" || add === "issuer_approval") next.worker_add = add; else delete next.worker_add;
+    const reval = text(f, "revalidation");
+    if (reval === "none") next.revalidation = { mode: "none" };
+    else if (reval === "interval") {
+      if (text(f, "revalidation_hours") === "") return "Say how many hours apart revalidation is needed.";
+      next.revalidation = { mode: "interval", every_hours: Number(text(f, "revalidation_hours")) };
+    } else delete next.revalidation;
     return next;
   }, "Saved");
 }

@@ -15,6 +15,10 @@ export interface ClassConfig {
   acceptance_declaration: string[];
   requires_physical_controls?: boolean;
   override_prohibited?: boolean;
+  // Live rules (phase 6a): each must be chosen; none has a default.
+  extension?: { max_count: number; max_total_hours: number };
+  worker_add?: "supervisor" | "issuer_approval";
+  revalidation?: { mode: "none" } | { mode: "interval"; every_hours: number };
   notice?: { amount: number; unit: "working_days" | "calendar_days" | "hours"; cutoff_applies: boolean; restart_on_resubmission: boolean };
   evidence?: { induction_course_ids: string[]; team_competency_type_ids: string[]; supervisor_competency_type_ids: string[] };
 }
@@ -32,6 +36,7 @@ export const PERMIT_STATE: Record<string, string> = {
   refused: "Refused",
   cancelled: "Cancelled",
   expired: "Expired",
+  suspended: "Suspended",
 };
 
 export const STEP_KIND: Record<string, string> = {

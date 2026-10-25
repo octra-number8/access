@@ -79,6 +79,26 @@ export function ConfigForm({ versionId, config, newKey, systemTypes, courses, co
       <label>Needs physical controls (isolation, impairment or fire watch)
         <select name="requires_physical_controls" defaultValue={choice(config.requires_physical_controls)}><option value="">— Choose —</option><option value="yes">Yes: cannot be issued until live controls exist</option><option value="no">No</option></select>
       </label>
+      <fieldset className="stack"><legend>While the permit is live</legend>
+        <p className="m-0 muted">None of these has a default. Leave a field blank until the venue has decided it.</p>
+        <div className="row">
+          <label>Extensions allowed (times, Q108)<input name="extension_count" type="number" min={0} step={1} defaultValue={config.extension?.max_count ?? ""} /></label>
+          <label>Total extension (hours)<input name="extension_hours" type="number" min={0} step="any" defaultValue={config.extension?.max_total_hours ?? ""} /></label>
+        </div>
+        <label>People added to the team after issue (Q106)
+          <select name="worker_add" defaultValue={config.worker_add ?? ""}><option value="">— Choose —</option>
+            <option value="supervisor">The supervisor adds them, after the checks</option>
+            <option value="issuer_approval">An issuer approves each addition</option></select>
+        </label>
+        <div className="row">
+          <label>Revalidation while live (Q112)
+            <select name="revalidation" defaultValue={config.revalidation?.mode ?? ""}><option value="">— Choose —</option>
+              <option value="none">Not needed</option><option value="interval">Every so many hours</option></select>
+          </label>
+          <label>Every (hours)<input name="revalidation_hours" type="number" min={0} step="any"
+            defaultValue={config.revalidation?.mode === "interval" ? config.revalidation.every_hours : ""} /></label>
+        </div>
+      </fieldset>
       <label>Late-notice exceptions prohibited (Q93)
         <select name="override_prohibited" defaultValue={choice(config.override_prohibited)}><option value="">— Choose —</option><option value="yes">Yes</option><option value="no">No</option></select>
       </label>

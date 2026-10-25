@@ -25,6 +25,13 @@ export function ConfigView({ config, names }: { config: ClassConfig; names: Map<
       <p className="m-0"><strong>Needs physical controls</strong> (isolation, impairment or fire watch): {yesNo(config.requires_physical_controls)}
         {config.requires_physical_controls ? <span className="muted"> — cannot be issued until live controls are available</span> : null}</p>
       <p className="m-0"><strong>Late-notice exceptions prohibited:</strong> {yesNo(config.override_prohibited)}</p>
+      <p className="m-0"><strong>Extensions:</strong> {config.extension === undefined ? "Not chosen"
+        : config.extension.max_count === 0 ? "None allowed (chosen)"
+        : `up to ${config.extension.max_count} time(s), ${config.extension.max_total_hours} hours in total, by an issuer`}</p>
+      <p className="m-0"><strong>People added after issue:</strong> {config.worker_add === undefined ? "Not chosen"
+        : config.worker_add === "supervisor" ? "added by the supervisor, after the checks" : "each approved by an issuer"}</p>
+      <p className="m-0"><strong>Revalidation while live:</strong> {config.revalidation === undefined ? "Not chosen"
+        : config.revalidation.mode === "none" ? "Not needed (chosen)" : `every ${config.revalidation.every_hours} hours, by the supervisor`}</p>
       <p className="m-0"><strong>Team evidence:</strong> {config.evidence ? (
         [...config.evidence.induction_course_ids.map((i) => `induction: ${names.get(i) ?? "a course"}`),
          ...config.evidence.team_competency_type_ids.map((i) => `everyone: ${names.get(i) ?? "a competency"}`),

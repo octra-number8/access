@@ -96,6 +96,10 @@ Each entry records what was decided, by whom, and what it changes. Open items ar
 - **Date:** 25 October 2026 · **Decided by:** Wes Pierce
 - [phase-3-design.md](phase-3-design.md) approved with P3-1 to P3-10: split into 3a (database, API, importer) and 3b (screens, Induct look, E3 screens); learners enter by personal induction link, email code or facilitation (no anonymous public link); minimal `event` and `event_phase` now; publication by an appointed H&S authority with author and submitter excluded; assessment and validity settings required per version with no defaults; safety-critical question flag; the app takes Induct's look, light-only; typed name by default, drawn signature optional per venue; English only for now with language recorded; Induct components copied with provenance.
 
+## D-017 — Phase 4 design approved
+- **Date:** 25 October 2026 · **Decided by:** Wes Pierce
+- [phase-4-design.md](phase-4-design.md) approved with P4-1 to P4-8: split into 4a (database, API, pgTAP) and 4b (screens); the Q56/Q183 trigger list offered only as an importable draft screening set needing technical-authority approval; packages started by organisation administrators of a party with an active, unrestricted engagement, or by tenant administrators; one performing organisation per package, event builds as linked packages; change kind decided by the fields changed, with scope, method, performing organisation, areas, systems, window, supervisor and screening answers always material; no recommendation is not a decision, so a recorded "no permit required" decision is needed; deferred specialist work through external-reference holds (N1 still to confirm); work types are venue configuration.
+
 ---
 
 ## CLAUDE.md wording — applied 24 October 2026 (approved by Wes Pierce)

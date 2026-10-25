@@ -1,0 +1,138 @@
+-- Phase 4 fixture, through the API on top of the phase 1 world.
+--
+-- Adds, for customer A / venue V1:
+--   OP is the accountable administrator of organisation O (engaged at V1, active).
+--   pc_cs: "Confined space", a deferred class handled by external reference.
+--   wt_maint: work type "Routine maintenance".
+--   t_ta: a "Technical Authority" appointment type (screening approval and decisions,
+--         external-reference decisions), proposed by a1 and approved by the root appointee.
+--   u_tara/p_tara: root TA appointment over the whole site, classes HW, EL and CS.
+--   u_tess/p_tess: root TA appointment over HALL1 only, class HW only.
+--   ss1: screening version 1 (draft, by a1). tests.approve_screening() proposes it (a1) and
+--        has Tara approve it. Questions: hot (yes/no), isolate (yes/no), height (yes/no),
+--        height-kind (roof/mewp/ladder, shown if height = yes), confined (yes/no).
+--        Rules: r-hot (hot = yes -> HW), r-isolate (isolate = yes -> EL),
+--        r-roof (height-kind = roof -> HW), r-confined (confined = yes -> CS, external).
+
+\set QUIET on
+
+create function tests.screening_content() returns jsonb language sql stable as $$
+  select jsonb_build_object(
+    'questions', jsonb_build_array(
+      jsonb_build_object('key', 'hot', 'text', 'Will the work produce heat, flame or sparks?', 'type', 'yes_no'),
+      jsonb_build_object('key', 'isolate', 'text', 'Does the work need electrical isolation?', 'type', 'yes_no'),
+      jsonb_build_object('key', 'height', 'text', 'Will anyone work at height?', 'type', 'yes_no'),
+      jsonb_build_object('key', 'height-kind', 'text', 'Where at height?', 'type', 'choose_one',
+        'options', jsonb_build_array(jsonb_build_object('key', 'roof', 'text', 'On a roof'),
+                                     jsonb_build_object('key', 'mewp', 'text', 'From a MEWP'),
+                                     jsonb_build_object('key', 'ladder', 'text', 'From a ladder')),
+        'show_if', jsonb_build_object('question', 'height', 'answers', jsonb_build_array('yes'))),
+      jsonb_build_object('key', 'confined', 'text', 'Will anyone enter a confined space?', 'type', 'yes_no')),
+    'rules', jsonb_build_array(
+      jsonb_build_object('key', 'r-hot', 'all', jsonb_build_array(jsonb_build_object('question', 'hot', 'answers', jsonb_build_array('yes'))),
+                         'permit_class_id', tests.w('pc_hw'), 'rationale', 'Heat, flame or sparks need hot works controls.'),
+      jsonb_build_object('key', 'r-isolate', 'all', jsonb_build_array(jsonb_build_object('question', 'isolate', 'answers', jsonb_build_array('yes'))),
+                         'permit_class_id', tests.w('pc_el'), 'rationale', 'Electrical isolation needs an isolation permit.'),
+      jsonb_build_object('key', 'r-roof', 'all', jsonb_build_array(jsonb_build_object('question', 'height-kind', 'answers', jsonb_build_array('roof'))),
+                         'permit_class_id', tests.w('pc_hw'), 'rationale', 'Roof work at this venue is controlled with hot works checks.'),
+      jsonb_build_object('key', 'r-confined', 'all', jsonb_build_array(jsonb_build_object('question', 'confined', 'answers', jsonb_build_array('yes'))),
+                         'permit_class_id', tests.w('pc_cs'), 'rationale', 'Confined space entry is a specialist activity.'))) $$;
+
+-- A job description; areas default to HALL1.
+create function tests.wp_input(p_areas uuid[] default null, p_title text default 'Replace sockets on stand',
+                               p_scope text default 'Replace six double sockets on stand 1', p_supervisor uuid default null,
+                               p_parties jsonb default '[]') returns jsonb language sql stable as $$
+  select jsonb_build_object('title', p_title, 'scope', p_scope, 'method', 'Isolate, replace, test',
+    'window_from', (date_trunc('day', now()) + interval '7 days')::text,
+    'window_to', (date_trunc('day', now()) + interval '8 days')::text,
+    'contact_person_id', tests.w('p_op'), 'supervisor_person_id', p_supervisor,
+    'area_ids', to_jsonb(coalesce(p_areas, array[tests.w('hall1')])), 'system_ids', '[]'::jsonb,
+    'parties', p_parties) $$;
+
+create function tests.root_ta(p_email text, p_given text, p_type_version uuid, p_classes uuid[], p_area uuid) returns uuid[]
+language plpgsql as $$
+declare u uuid := tests.new_user(p_email); p uuid; ap uuid;
+begin
+  perform tests.login(tests.w('u_a1'));
+  p := tests.must(api.create_person(tests.key(), tests.w('cust_a'), p_given, 'Authority', p_email => p_email));
+  perform tests.must(api.link_user_account(tests.key(), p, u));
+  ap := tests.must(api.record_root_appointment(tests.key(), tests.w('v1'), p, tests.w('p_d'), p_type_version, p_classes,
+    jsonb_build_array(jsonb_build_object('area_id', p_area)), now() - interval '1 minute', null, null, null,
+    'Letter of appointment TA-' || p_given));
+  perform tests.login(tests.w('u_a2'));
+  perform tests.must(api.confirm_root_appointment(tests.key(), ap, tests.version('core.appointment', ap)));
+  perform tests.login(u);
+  perform tests.must(api.acknowledge_appointment(tests.key(), ap, tests.version('core.appointment', ap)));
+  perform tests.logout();
+  return array[u, p, ap];
+end $$;
+
+create function tests.build_phase4() returns void language plpgsql as $$
+declare t_ta uuid; tv_ta uuid; x uuid[]; pc_cs uuid; ss1 uuid;
+begin
+  perform tests.login(tests.w('u_a1'));
+  perform tests.must(api.set_accountable_admin(tests.key(), tests.w('org_o'), tests.w('p_op')));
+  pc_cs := tests.must(api.create_external_class(tests.key(), tests.w('v1'), 'CS', 'Confined space'));
+  perform tests.set_w('pc_cs', pc_cs);
+  perform tests.set_w('wt_maint', tests.must(api.create_work_type(tests.key(), tests.w('v1'), 'MAINT', 'Routine maintenance')));
+  t_ta := tests.must(api.create_appointment_type(tests.key(), tests.w('v1'), 'TA', 'Technical Authority'));
+  tv_ta := tests.must(api.propose_appointment_type_version(tests.key(), t_ta,
+    array['screening_set.approve', 'screening_set.reject', 'screening.decide', 'external_reference.decide'],
+    array[tests.w('pc_hw'), tests.w('pc_el'), pc_cs], '{}', '{}', true, false, tests.w('p_a1'),
+    now() - interval '1 minute', 'Technical authority for activity screening'));
+  perform tests.login(tests.w('u_r'));
+  perform tests.must(api.decide_appointment_type_version(tests.key(), tv_ta, tests.version('core.appointment_type_version', tv_ta),
+                                                         'approve', 'Agreed'));
+  x := tests.root_ta('tara@a.test', 'Tara', tv_ta, array[tests.w('pc_hw'), tests.w('pc_el'), pc_cs], tests.w('site'));
+  perform tests.set_w('u_tara', x[1]); perform tests.set_w('p_tara', x[2]); perform tests.set_w('ap_tara', x[3]);
+  x := tests.root_ta('tess@a.test', 'Tess', tv_ta, array[tests.w('pc_hw')], tests.w('hall1'));
+  perform tests.set_w('u_tess', x[1]); perform tests.set_w('p_tess', x[2]); perform tests.set_w('ap_tess', x[3]);
+  perform tests.set_w('t_ta', t_ta); perform tests.set_w('tv_ta', tv_ta);
+
+  perform tests.login(tests.w('u_a1'));
+  ss1 := tests.must(api.create_screening_draft(tests.key(), tests.w('v1')));
+  perform tests.must(api.save_screening_draft(tests.key(), ss1, tests.version('core.screening_set_version', ss1),
+                                              tests.screening_content()));
+  perform tests.set_w('ss1', ss1);
+  perform tests.logout();
+end $$;
+
+create function tests.approve_screening() returns void language plpgsql as $$
+begin
+  perform tests.login(tests.w('u_a1'));
+  perform tests.must(api.propose_screening_version(tests.key(), tests.w('ss1'), tests.version('core.screening_set_version', tests.w('ss1'))));
+  perform tests.login(tests.w('u_tara'));
+  perform tests.must(api.decide_screening_version(tests.key(), tests.w('ss1'), tests.version('core.screening_set_version', tests.w('ss1')),
+                                                  'approve', 'Validated against the venue procedures'));
+  perform tests.logout();
+end $$;
+
+-- Starts a job as OP (O's accountable administrator); returns its id.
+create function tests.new_job(p_input jsonb default null) returns uuid language plpgsql as $$
+declare id uuid;
+begin
+  perform tests.login(tests.w('u_op'));
+  id := tests.must(api.create_work_package(tests.key(), tests.w('v1'), tests.w('e1'), tests.w('wt_maint'),
+                                           coalesce(p_input, tests.wp_input())));
+  perform tests.logout();
+  return id;
+end $$;
+
+-- Answers as OP; returns the submit result.
+create function tests.answer_and_submit(p_wp uuid, p_answers jsonb, p_selected uuid[] default '{}') returns jsonb
+language plpgsql as $$
+declare r jsonb;
+begin
+  perform tests.login(tests.w('u_op'));
+  perform tests.must(api.save_screening_answers(tests.key(), p_wp, p_answers, p_selected));
+  r := api.submit_work_package(tests.key(), p_wp, tests.version('core.work_package', p_wp));
+  perform tests.logout();
+  return r;
+end $$;
+
+create function tests.no_to_all() returns jsonb language sql immutable as $$
+  select '{"hot": ["no"], "isolate": ["no"], "height": ["no"], "confined": ["no"]}'::jsonb $$;
+
+grant execute on all functions in schema tests to authenticated;
+select tests.build_phase4();
+\set QUIET off

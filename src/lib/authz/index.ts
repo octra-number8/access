@@ -50,6 +50,8 @@ export type DenialCode =
   | "idempotency_key_reused" | "evidence_incomplete" | "person_restricted" | "organisation_restricted"
   | "link_expired" | "link_revoked" | "link_wrong_account" | "invalid_content" | "not_ready"
   | "retry_not_yet" | "assisted_review_required" | "too_soon"
+  | "no_screening" | "engagement_not_active" | "answers_incomplete" | "not_draft" | "not_open"
+  | "has_recommendations" | "no_change" | "not_proposed"
   | (string & {});
 
 export interface AuthzDenied {

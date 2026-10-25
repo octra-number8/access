@@ -10,3 +10,10 @@ export function documentsBucket() {
     auth: { persistSession: false, autoRefreshToken: false },
   }).storage.from("documents");
 }
+
+/** Induction media: released only after api.induction_media_access has authorised it. */
+export function inductionMediaBucket() {
+  return createClient(publicEnv.supabaseUrl, serverEnv().serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  }).storage.from("induction-media");
+}

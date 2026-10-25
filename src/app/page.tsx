@@ -19,10 +19,12 @@ export default async function Home() {
       <p className="muted">{session.email}</p>
       <ul>
         {session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/venue">Venue administration</Link></li> : null}
+        {session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/venue/inductions">Inductions</Link></li> : null}
         {session.organisationAdmin.map((o) => (
           <li key={o.organisation_id}><Link href={`/organisation/${o.organisation_id}`}>Your organisation</Link> ({o.role} administrator)</li>
         ))}
         {session.appointmentVenueIds.length > 0 ? <li><Link href="/review">Decisions waiting for you</Link></li> : null}
+        {session.appointmentVenueIds.length > 0 ? <li><Link href="/facilitate">Record a facilitated induction</Link></li> : null}
       </ul>
       {session.personIds.length === 0 ? (
         <p className="muted">Your account is not linked to any organisation yet. If you were invited, open the link in your invitation email.</p>

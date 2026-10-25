@@ -134,3 +134,21 @@ Implemented in `supabase/migrations/20261025000022…24`, the importer in `src/l
 | Importer | Brief markdown and Induct starter JSON → draft content, open points, image list, notes | Reading times and safety-critical flags are never invented: imported as 0 s / not critical with open points that block publication. Extra registration fields are listed, not imported (privacy, G11). |
 | Media | `induction_media` (images, PDF, WebVTT up to 20 MB; MP4 up to 200 MB **[decide I1]**), recorded as not scanned while D-014 holds | Upload and signed delivery screens are 3b. |
 | Shuffle | Stored as a setting; the learner screen shuffles the display order (3b) | |
+
+## 12. As built (phase 3b-1, 25 October 2026)
+
+Screens for authoring, publishing, personal links, the learner journey and facilitation, in Induct's look (light only, P3-7). Migration `20261025000025` adds what the screens need; the rules from 3a are unchanged.
+
+| Area | As built | Note |
+|---|---|---|
+| Look | Induct's tokens, font and logo; existing Access classes re-implemented on them | Copied components carry a note of their source (P3-10). |
+| Authoring (`/venue/inductions`) | Course list, new course, start a version; per version: problems, import, open points, reading times and safety-critical flags, settings, preview with media upload, submit, publish or return | Settings fields start empty and say the source's figures are suggestions only (P3-5). No in-page text editor: changes are made by re-importing **[outstanding]**. |
+| Publishing | Shown to everyone on the version page; the server refuses the author, the submitter and anyone without the publish appointment, with the four-part explanation | Seen in the walkthrough: the author was refused; the authorising engineer published. |
+| Media | Upload is checked by content sniffing (PDF, PNG, JPEG, WebVTT, MP4), stored in the private `induction-media` bucket and served through `/api/induction-media/{id}` as a 300-second signed URL after `api.induction_media_access` | Learners get only files that their current link's published version uses. |
+| Links | "Send a personal induction link" on the inductions list and on an organisation's page; the email names the address to sign in with | |
+| Learner journey (`/induction/{token}` → `/learn/{course}`) | Welcome, sections with a server-timed countdown, questions, result with explanations of wrong answers, retry, declaration (typed name), done | Everything is worked out on the server again on reload, so leaving and coming back resumes at the same point with the same remaining time. The done screen says completion is not permission to enter or to work. |
+| Proof | pgTAP `20_learner_state_and_media` (27 assertions; 515 in the whole suite): media released only to authors, the publishing authority, or a learner holding a current link to a version that uses the file; resume state; explanations without correct options. Two deliberate weakenings were each caught. Browser walkthrough from import to completion, learner at 375 and 360 px. | |
+| Facilitation (`/facilitate`) | Record a facilitated completion | Not walked through in the browser in 3b-1; covered by pgTAP. |
+| Sign in | The code form reuses the address typed for the code | The address is never put in the URL. |
+| Validation messages | Name sections by title; "The image in …" | Restated `core.validate_course_content` in 0025; checks unchanged. |
+| Drawn signature | Not offered | Only "typed" can be chosen until a drawn signature is stored as evidence **[outstanding]**. |

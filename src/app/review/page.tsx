@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/ActionForm";
 import { EvidenceList, type EvidenceLine } from "@/components/Blocked";
@@ -18,6 +19,11 @@ export default async function Review() {
     db.from("engagement").select("id, organisation_id, capacity_code, row_version").eq("status", "proposed"),
     db.from("organisation").select("id, legal_name"),
   ]);
+  const [inductions, courseRows] = await Promise.all([
+    db.from("course_version").select("id, course_id, version_no").eq("status", "in_review"),
+    db.from("induction_course").select("id, title"),
+  ]);
+  const courseTitle = new Map((courseRows.data ?? []).map((c) => [c.id, c.title]));
   const reviewed = new Set((reviews.data ?? []).map((r) => r.document_version_id));
   const doc = new Map((docs.data ?? []).map((d) => [d.id, d]));
   const currentCriteria = new Map<string, { id: string; criteria: Array<{ code: string; label: string }> }>();
@@ -31,6 +37,11 @@ export default async function Review() {
     <>
       <h1>Decisions waiting for you</h1>
       <p className="muted">A review records that a document was checked against the stated criteria for a stated scope. It is not an approval of the work, a certificate of competence or a statement of compliance.</p>
+
+      <h2>Inductions waiting for publication</h2>
+      {(inductions.data ?? []).length === 0 ? <p>None.</p> : (
+        <ul>{(inductions.data ?? []).map((v) => <li key={v.id}><Link href={`/venue/inductions/${v.id}`}>{courseTitle.get(v.course_id) ?? "Induction"} — version {v.version_no}</Link></li>)}</ul>
+      )}
 
       <h2>Documents to review</h2>
       {waiting.length === 0 ? <p>None.</p> : null}

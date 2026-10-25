@@ -5,6 +5,7 @@ import { EvidenceList, type EvidenceLine } from "@/components/Blocked";
 import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 import { invitePerson, uploadDocumentAction } from "../../actions";
+import { sendLink } from "../../venue/inductions/actions";
 
 const SCAN_TEXT: Record<string, string> = {
   pending: "Being checked for malware",
@@ -27,13 +28,16 @@ export default async function Organisation({ params }: { params: Promise<{ id: s
   const { data: org } = await db.from("organisation").select("id, legal_name, trading_name").eq("id", id).maybeSingle();
   if (!org) return <p>This organisation does not exist or you do not have access to it.</p>;
 
-  const [rels, invites, docs, types, engagements] = await Promise.all([
+  const [rels, invites, docs, types, engagements, courses, published] = await Promise.all([
     db.from("person_organisation_relationship").select("id, person_id, kind, status").eq("organisation_id", id),
     db.from("invitation").select("id, invitee_email, status, expires_at").eq("organisation_id", id),
     db.from("document").select("id, title, owner_kind, person_id, document_type_id").or(`organisation_id.eq.${id},provided_via_organisation_id.eq.${id}`),
     db.from("document_type").select("id, label, owner_level"),
     db.from("engagement").select("id, capacity_code, status").eq("organisation_id", id),
+    db.from("induction_course").select("id, title"),
+    db.from("course_version").select("course_id").eq("status", "published"),
   ]);
+  const publishedCourses = (courses.data ?? []).filter((c) => (published.data ?? []).some((v) => v.course_id === c.id));
   const personIds = (rels.data ?? []).map((r) => r.person_id);
   const docIds = (docs.data ?? []).map((d) => d.id);
   const [people, versions] = await Promise.all([
@@ -107,6 +111,23 @@ export default async function Organisation({ params }: { params: Promise<{ id: s
         <label>Expires on<input name="expires_on" type="date" /></label>
         <label>File (PDF, JPEG or PNG, up to 20 MB)<input name="file" type="file" accept="application/pdf,image/jpeg,image/png" required /></label>
       </ActionForm>
+
+      {publishedCourses.length > 0 && active.length > 0 ? (
+        <>
+          <h2>Send someone their induction</h2>
+          <ActionForm action={sendLink} what="Sending this induction link" submitLabel="Email the link">
+            <input type="hidden" name="key" value={randomUUID()} />
+            <input type="hidden" name="organisation_id" value={id} />
+            <label>Induction
+              <select name="course_id" required>{publishedCourses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}</select>
+            </label>
+            <label>Person
+              <select name="person_id" required>{active.map((r) => <option key={r.person_id} value={r.person_id}>{name.get(r.person_id)}</option>)}</select>
+            </label>
+            <label>Link valid for (days)<input name="days" type="number" min={1} max={60} required defaultValue={14} /></label>
+          </ActionForm>
+        </>
+      ) : null}
 
       <h2>People</h2>
       <ul>{(rels.data ?? []).map((r) => <li key={r.id}>{name.get(r.person_id) ?? "Person"} — {r.kind.replace("_", " ")} — {r.status}</li>)}</ul>

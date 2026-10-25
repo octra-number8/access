@@ -169,3 +169,29 @@ Implemented in `supabase/migrations/20261025000027…29`; proved by pgTAP `22_sc
 | Repeated requests | The shared pre-check (`core.authorised_or_refusal`) now hands a reused request key straight to `authz.require`, so a repeated request is replayed, never re-judged | Found by the idempotency test: a repeated submission was answered "not a draft" instead of being replayed. Applies to the phase 3 functions too. |
 | Routed | Every recommendation accepted, upheld or not required; every hold accepted; and either a class is required or a "no permit required" decision exists | An accepted hold alone does not route a job (P4-6). |
 | Not built in 4a | Screens (4b); the starter screening set (P4-2), to be shipped with the 4b authoring screen; reminders | |
+
+## 13. As built (phase 4b, 25 October 2026)
+
+Screens for work packages and activity screening. Migration `20261025000030` adds two read functions; nothing else in the database changed.
+
+| Where | Who | What |
+|---|---|---|
+| Activity screening set-up (`/venue/screening`) | Tenant administrators | Permit classes (including deferred specialist classes held for external evidence), work types, screening versions; a draft editor (load the starter set, add or remove questions and rules, including two-condition rules and follow-up questions); a preview that runs sample answers through the database's own rules and records nothing; propose for approval. |
+| Starter set (P4-2) | — | `src/lib/screening/starter.ts`: nine questions and nine rules drawn from Q56 and Q183, labelled as proposed and needing technical-authority validation. A rule is imported only if the venue has a class with the suggested code and handling; missing classes are listed, never created. No numbers, distances or durations. |
+| Jobs (`/jobs`) | Party organisations, tenant administrators, screening authorities | Every job with its recorded state, next action and who owns it (Q54). No headline counts. |
+| Start a job (`/jobs/new`) | Organisation administrators with an active engagement; tenant administrators | One journey for every work type: title, scope, method, days, areas, contact, supervisor. Refused, with the reason and who resolves it, without an active engagement. |
+| Screening (`/jobs/{id}/screening`) | The job's organisation | One question per screen at phone width; follow-up questions appear only after the answer that needs them; saved on every step and resumed at the first unanswered question; a check-your-answers screen with an optional direct choice of classes; submit. |
+| Job page (`/jobs/{id}`) | Everyone who can see the job | The three decisions explained (Q60); the job; what screening found and why, with accept and challenge for the applicant, and evidence for specialist holds; every decision with who made it and why; change (with the material/administrative rule explained) and cancel; revision history. Read-only for the venue's authorities. |
+| Decisions page | Appointees | Screening versions to approve (shown exactly as the author sees them), challenged recommendations, jobs where nothing was recommended, specialist holds with their evidence. |
+| `api.work_package_detail` | Everyone who can see the job | Names of parties, contact, supervisor, areas, classes and deciders, without access to the underlying person or organisation records. Never contact details. |
+
+Proof: pgTAP `25_work_package_reads` (650 assertions in the suite); e2e `screening.e2e.test.ts` (the starter set accepted by the database's validator, previewed and proposed); unit tests for the starter mapping. Browser walkthrough: the venue administrator loads the starter set, is refused when removing a question others depend on, adds a question and a two-condition rule, previews and proposes; the technical authority approves; the contractor, at 375 px, starts two jobs, answers the screening, resumes after a reload, submits, accepts one recommendation, challenges another and adds specialist evidence; the authority is refused "safe" wording, then decides the challenge, accepts the evidence and records "no permit required" for the job with nothing recommended; both jobs are routed; a title correction keeps the routing and adding an area returns the job to draft.
+
+Fixed during the walkthrough: the question framed by a form border on the phone; the journey restarting at question 1 after a reload; the review list's large buttons; the next action asking for evidence already given; a routed job with no permit needed showing a permit-request step.
+
+Outstanding:
+- After a material change the job page shows only the current screening round. Earlier answers and decisions are kept unchanged in the database but not shown.
+- No screen yet lets anyone name other parties (commissioning, principal contractor, affected occupier, landlord) on a job; the API accepts them and keeps existing ones. Offering contractors a list of organisations would disclose who is engaged at the venue, so it needs a decision first **[decide P4-9]**.
+- The authority cannot add a required permit to a job in screening; the applicant changes the job and selects it **[decide P4-10]**.
+- Success messages vanish when the decided item leaves its list (known since 2b).
+- Permit requests are phase 5.

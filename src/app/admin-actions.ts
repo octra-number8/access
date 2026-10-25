@@ -176,3 +176,33 @@ export async function recordPersonWithoutLogin(_: ActionResult, f: FormData): Pr
     return failure(e);
   }
 }
+
+// ---- Activity screening decisions (Q55-Q59, D-017) -------------------------------------
+
+export async function decideScreeningVersion(_: ActionResult, f: FormData): Promise<ActionResult> {
+  const approve = text(f, "decision") === "approve";
+  return run("decide_screening_version", { p_idempotency_key: key(f), p_version_id: text(f, "version_id"),
+    p_expected_version: version(f), p_decision: approve ? "approve" : "reject", p_reason: text(f, "reason") },
+    approve ? "Screening approved; jobs submitted from now on use it" : "Screening version rejected");
+}
+
+export async function decideChallenge(_: ActionResult, f: FormData): Promise<ActionResult> {
+  const notRequired = text(f, "outcome") === "not_required";
+  return run("decide_challenge", { p_idempotency_key: key(f), p_recommendation_id: text(f, "recommendation_id"),
+    p_expected_version: version(f), p_outcome: notRequired ? "not_required" : "upheld", p_reason: text(f, "reason"),
+    p_scope_wording: optional(f, "scope_wording") },
+    notRequired ? "Recorded: no permit required for the stated scope" : "Recorded: the permit is required");
+}
+
+export async function recordNoPermitRequired(_: ActionResult, f: FormData): Promise<ActionResult> {
+  return run("record_no_permit_required", { p_idempotency_key: key(f), p_work_package_id: text(f, "work_package_id"),
+    p_expected_version: version(f), p_scope_wording: text(f, "scope_wording"), p_reason: text(f, "reason") },
+    "Recorded: no permit required for the stated scope");
+}
+
+export async function decideHold(_: ActionResult, f: FormData): Promise<ActionResult> {
+  const accepted = text(f, "outcome") === "accepted";
+  return run("decide_external_reference", { p_idempotency_key: key(f), p_hold_id: text(f, "hold_id"),
+    p_expected_version: version(f), p_outcome: accepted ? "accepted" : "refused", p_reason: text(f, "reason") },
+    accepted ? "External evidence accepted" : "External evidence refused");
+}

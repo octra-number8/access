@@ -160,6 +160,13 @@ repository CLAUDE.md is the controlling version.
 |---|---|---|
 | I1 | Maximum size for induction video files. | 200 MB per video (a few minutes of 1080p). Documents and images stay at 20 MB (P2-6). |
 
+## Open — raised by the phase 4b build (see phase-4-design.md §13)
+
+| Ref | Question | Recommendation |
+|---|---|---|
+| P4-9 | How are other parties (commissioning, principal contractor, affected occupier, landlord/operator) named on a job? A contractor-facing list of organisations would disclose who is engaged at the venue. | The venue names them: tenant administrators add parties on the job page; contractors see the parties' names on their own jobs but never a list of the venue's organisations. Revisit with the privacy adviser (G11) and when approval routes need occupiers (phase 5, Q77–Q78). |
+| P4-10 | Can the venue's authority require a permit that screening missed, on a job already in screening? | Yes, in phase 5: an appointment-based "require a class" decision with a reason, which adds an accepted recommendation and is recorded against the authority. Until then the applicant changes the job and selects the class. |
+
 ## Open — affect later phases
 
 | Ref | Question | Recommendation |

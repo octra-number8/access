@@ -7,6 +7,7 @@ import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 import { date, verificationText } from "@/lib/labels";
 import { approveEngagementAction, reviewDocumentAction } from "../actions";
+import { ScreeningDecisions } from "./screening-decisions";
 import { decideTypeVersion, imposeRestriction, liftRestriction, verifyCompetency } from "../admin-actions";
 
 export default async function Review() {
@@ -61,6 +62,8 @@ export default async function Review() {
       {(inductions.data ?? []).length === 0 ? <p>None.</p> : (
         <ul>{(inductions.data ?? []).map((v) => <li key={v.id}><Link href={`/venue/inductions/${v.id}`}>{courseTitle.get(v.course_id) ?? "Induction"} — version {v.version_no}</Link></li>)}</ul>
       )}
+
+      <ScreeningDecisions />
 
       <h2>Documents to review</h2>
       {waiting.length === 0 ? <p>None.</p> : null}

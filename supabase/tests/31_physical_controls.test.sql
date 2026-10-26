@@ -139,7 +139,8 @@ select tests.login(tests.w('u_al'));
 insert into t_r select 'impair_missing', api.impair_system(tests.key(), tests.w('imp'), tests.version('core.impairment', tests.w('imp')), '[]', '[]');
 select is((select v ->> 'code' from t_r where name = 'impair_missing'), 'measures_missing',
   'a system is not impaired until its compensatory measures and notifications are recorded (Q137, Q138)');
-select is((select jsonb_array_length(v -> 'missing') from t_r where name = 'impair_missing'), 2, 'each one listed');
+select is((select jsonb_array_length(v -> 'items') from t_r where name = 'impair_missing'), 2, 'each one listed');
+select is((select jsonb_typeof(v -> 'missing') from t_r where name = 'impair_missing'), 'string', 'alongside the refusal''s own wording of what is missing');
 select is(api.impair_system(tests.key(), tests.w('imp'), tests.version('core.impairment', tests.w('imp')),
   jsonb_build_array(jsonb_build_object('measure', 'Fire marshal patrol of Hall 1 every 30 minutes', 'in_place_person_id', tests.w('p_vic'))),
   jsonb_build_array(jsonb_build_object('notification', 'Alarm receiving centre', 'told', 'ARC operator 4', 'how', 'Phone', 'at', clock_timestamp() + interval '1 hour')))

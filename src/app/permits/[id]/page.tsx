@@ -9,18 +9,12 @@ import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 import { organisationPeople } from "../../jobs/data";
 import {
-  acceptPermit, cancelPermit, decideException, issuePermit, reopenStep, requestException, respondToRfi, setTeam, submitPermit,
+  cancelPermit, decideException, issuePermit, reopenStep, requestException, respondToRfi, setTeam, submitPermit,
 } from "../actions";
 import { DraftForm, StepDecisionForm } from "./forms";
+import { LivePermit } from "./live";
 
 export const metadata = { title: "Permit" };
-
-function timeLeft(to: string): string {
-  const ms = new Date(to).getTime() - Date.now();
-  if (ms <= 0) return "ended";
-  const h = Math.floor(ms / 3_600_000);
-  return h >= 48 ? `${Math.floor(h / 24)} days left` : `${h} h ${Math.floor((ms % 3_600_000) / 60_000)} min left`;
-}
 
 export default async function Permit({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -34,9 +28,7 @@ export default async function Permit({ params }: { params: Promise<{ id: string 
   const k = () => randomUUID();
   const party = session.organisationAdmin.some((o) => o.organisation_id === p.performing_organisation_id);
   const appointee = session.appointmentVenueIds.includes(p.venue_id);
-  const supervisorId = p.snapshot?.content.team.find((t) => t.role === "supervisor")?.person_id;
-  const isSupervisor = Boolean(supervisorId && session.personIds.includes(supervisorId));
-  const preparing = party && (p.status === "draft" || p.status === "more_information_required");
+  const preparing = party && (p.status === "draft" || p.status === "more_information_required" || p.reissue_pending);
   const questions = p.class_version?.content.questions ?? [];
   const answersFor = (a: Record<string, string[]>) => questions.filter((q) => a[q.key]?.length)
     .map((q) => ({ q: q.text, a: a[q.key]!.map((x) => answersOf(q).find((o) => o.key === x)?.text ?? x).join(", ") }));
@@ -53,52 +45,28 @@ export default async function Permit({ params }: { params: Promise<{ id: string 
     if (d && !latestDocs.has(d.id)) latestDocs.set(d.id, { id: v.id, title: `${d.title} (v${v.version_no})` });
   }
   const openRfi = p.status === "more_information_required" ? p.rfis.find((r) => !r.responses) : null;
-  const conditions = p.snapshot ? p.snapshot.content.steps.flatMap((s) => s.decision?.conditions ?? []) : [];
 
-  // ---- The supervisor's view of an issued or active permit (Q104), phone first ----------
-  if (p.snapshot && (p.status === "issued_awaiting_acceptance" || p.status === "active" || p.status === "expired")) {
-    const s = p.snapshot.content;
+  // ---- The live permit (Q104, phase 6): the supervisor's view on a phone, and each authority's actions ----
+  if (p.snapshot && ["issued_awaiting_acceptance", "active", "suspended", "hand_back_pending", "expired", "closed"].includes(p.status)) {
+    const [team, { data: systems }, { data: areas }] = await Promise.all([
+      organisationPeople(db, p.performing_organisation_id),
+      db.from("system").select("id, name").eq("venue_id", p.venue_id).is("retired_at", null).order("name"),
+      db.from("area").select("id, name").in("id", p.close_out.live_area_ids),
+    ]);
     return (
-      <section className="mx-auto flex max-w-xl flex-col gap-4">
-        <p className="m-0"><Link href={`/jobs/${p.work_package_id}`}>{p.job_reference}</Link> · {p.performing_organisation}</p>
-        <div className={`rounded-2xl p-5 ${p.status === "active" ? "bg-surface border-2 border-ink" : "bg-surface border border-line"}`}>
-          <p className="m-0 text-sm text-muted">{p.class.name}</p>
-          <h1 className="m-0 text-2xl font-extrabold text-ink">{p.status === "active" ? "Active" : PERMIT_STATE[p.status]}</h1>
-          <p className="m-0">{s.job.title}</p>
-          {p.status === "active" ? <p className="m-0 text-sm">The defined work may proceed within the conditions below. Stop if anything changes.</p> : null}
-        </div>
-        <dl className="stack m-0">
-          <div><dt className="muted">Scope and limits</dt><dd className="m-0">{s.job.scope}{s.job.method ? ` — ${s.job.method}` : ""}</dd></div>
-          <div><dt className="muted">Where</dt><dd className="m-0">{s.job.areas.map((a) => a.name).join(", ")}</dd></div>
-          <div><dt className="muted">When</dt><dd className="m-0">{venueTime(s.version.window_from, tz)} to {venueTime(s.version.window_to, tz)} · <strong>{timeLeft(s.version.window_to)}</strong></dd></div>
-          <div><dt className="muted">Team</dt><dd className="m-0">{s.team.map((t) => `${t.name}${t.role === "supervisor" ? " (supervisor)" : ""}`).join(", ")}</dd></div>
-          <div><dt className="muted">Conditions</dt><dd className="m-0">{conditions.length === 0 ? "None" : <ul>{conditions.map((c) => <li key={c.id}>{c.text}</li>)}</ul>}</dd></div>
-          {s.exceptions.length ? <div><dt className="muted">Exceptions</dt><dd className="m-0">{s.exceptions.map((e, i) => <p key={i} className="m-0">{e.kind === "late_notice" ? "Late notice" : "Restriction"}: {e.outcome}{e.conditions ? ` — ${e.conditions}` : ""}</p>)}</dd></div> : null}
-          <div><dt className="muted">Linked permits</dt><dd className="m-0">{p.parent ? `${p.parent.class_name}: ${PERMIT_STATE[p.parent.status]}` : p.children.length === 0 ? "None" : p.children.map((c) => `${c.class_name}: ${PERMIT_STATE[c.status]}`).join("; ")}</dd></div>
-          <div><dt className="muted">Issued</dt><dd className="m-0">by {p.snapshot.issuer} at {venueTime(p.snapshot.issued_at, tz)}</dd></div>
-          <div><dt className="muted">Stop work</dt><dd className="m-0">Anyone may stop unsafe work. Tell the venue&apos;s control room and your supervisor at once.</dd></div>
-        </dl>
-        {p.acceptance ? <p className="notice m-0">Accepted by {p.acceptance.by} at {venueTime(p.acceptance.accepted_at, tz)} after briefing {p.acceptance.briefed.join(", ")}.</p> : null}
-        {p.status === "issued_awaiting_acceptance" && isSupervisor ? (
-          <ActionForm action={acceptPermit} what="Accepting this permit" submitLabel="Accept the permit">
-            <input type="hidden" name="key" value={k()} />
-            <input type="hidden" name="permit_id" value={p.id} />
-            <input type="hidden" name="row_version" value={p.row_version} />
-            {conditions.filter((c) => c.acknowledge).length > 0 ? (
-              <fieldset className="stack"><legend>Acknowledge each condition</legend>
-                {conditions.filter((c) => c.acknowledge).map((c) => <label key={c.id} className="flex min-h-11 items-center gap-3"><input type="checkbox" name="acknowledged" value={c.id} required /> {c.text}</label>)}
-              </fieldset>
-            ) : null}
-            <fieldset className="stack"><legend>Who did you brief at the workface? (Q103)</legend>
-              {s.team.map((t) => <label key={t.person_id} className="flex min-h-11 items-center gap-3"><input type="checkbox" name="briefed" value={t.person_id} /> {t.name}</label>)}
-            </fieldset>
-            <fieldset className="stack"><legend>Declaration</legend>
-              {s.class_version.acceptance_declaration.map((d, i) => <label key={i} className="flex min-h-11 items-center gap-3"><input type="checkbox" required /> {d}</label>)}
-            </fieldset>
-            <p className="text-sm muted m-0">Acceptance uses the live record: it cannot be done offline.</p>
-          </ActionForm>
-        ) : p.status === "issued_awaiting_acceptance" ? <p className="muted">Waiting for the named supervisor to accept it at the workface.</p> : null}
-      </section>
+      <>
+        <LivePermit p={p} session={session} k={k} people={team} systems={systems ?? []}
+          areaNames={new Map((areas ?? []).map((a) => [a.id, a.name]))} />
+        {preparing ? (
+          <section className="mx-auto mt-6 max-w-xl">
+            <h2>Prepare the request again</h2>
+            {p.draft_problems?.length ? <ul className="notice notice-blocked">{p.draft_problems.map((x) => <li key={x}>{x}</li>)}</ul> : null}
+            <DraftForm permitId={p.id} newKey={k()} questions={questions} answers={p.draft.answers}
+              windowFrom={toVenueLocal(p.draft.window_from, tz)} windowTo={toVenueLocal(p.draft.window_to, tz)}
+              documents={[...latestDocs.values()]} chosenDocuments={p.draft.document_version_ids} tz={tz} />
+          </section>
+        ) : null}
+      </>
     );
   }
 

@@ -108,9 +108,10 @@ await must(await signIn(taraLogin), "acknowledge_appointment", { p_idempotency_k
 const isType = await must(a1, "create_appointment_type", { p_idempotency_key: key(), p_venue_id: v.venueId, p_code: "IS", p_name: "Permit Issuer" });
 const isVersion = await must(a1, "propose_appointment_type_version", {
   p_idempotency_key: key(), p_appointment_type_id: isType.id, p_allowed_action_codes: ["permit.issue", "permit.exception_decide",
-    // Phase 6a live control.
+    // Phase 6 live control and hand-back.
     "permit.stop_as_authority", "permit.lift_suspension", "permit.extend", "permit.approve_worker",
-    "permit.exclude_worker_as_authority", "permit.change_supervisor"],
+    "permit.exclude_worker_as_authority", "permit.change_supervisor", "permit.stop_area", "permit.lift_area_stop",
+    "permit.hand_back_accept", "permit.close_out_for_issuer", "permit.cancel_issued", "permit.flag_abandoned"],
   p_eligible_permit_class_ids: classIds, p_eligible_system_type_ids: [], p_grantable_type_ids: [],
   p_is_root_eligible: true, p_requires_competence_evidence: false, p_owner_person_id: a1p!.person_id,
   p_effective_from: new Date(Date.now() - 60_000).toISOString(), p_change_reason: "Permit issue",
@@ -181,6 +182,56 @@ for (const [code, content] of configs) {
     p_reason: "Demo approval for local testing" });
 }
 
+// Phase 6: live controls. DEMO CONTENT FOR LOCAL TESTING ONLY: the systems, rules, contacts
+// and appointments are not validated by any technical authority. Nobody is appointed to
+// authorise emergency work, and the venue has no emergency definitions (P6-11).
+const hvType = await must(a1, "create_system_type", { p_idempotency_key: key(), p_venue_id: v.venueId, p_code: "HV", p_label: "High voltage" });
+const faType = await must(a1, "create_system_type", { p_idempotency_key: key(), p_venue_id: v.venueId, p_code: "FA", p_label: "Fire alarm" });
+await must(a1, "create_system", { p_idempotency_key: key(), p_venue_id: v.venueId, p_system_type_id: hvType.id, p_code: "HV1", p_name: "HV ring" });
+await must(a1, "create_system", { p_idempotency_key: key(), p_venue_id: v.venueId, p_system_type_id: faType.id, p_code: "FA1", p_name: "Fire alarm panel 1" });
+const controlTypes: Array<[string, string, string[], string, string, Array<Record<string, string>>]> = [
+  ["CT", "Controls Authority", ["isolation.authorise", "isolation.withdraw", "isolation.remove", "isolation.return", "isolation.lock_off_on_behalf",
+    "isolation.transfer", "impairment.authorise", "impairment.reauthorise", "impairment.withdraw", "impairment.transfer", "control.lift_failure",
+    "control.report_failure_as_authority", "control_rule.publish", "custody.issue", "custody.return"],
+   "iris+demo@venue.local", "Iris", [{ system_type_id: hvType.id }, { system_type_id: faType.id }, { area_id: root!.id }]],
+  ["AP", "Authorised Person", ["isolation.apply", "isolation.prove", "impairment.impair", "impairment.test", "impairment.restore"],
+   "alan+demo@venue.local", "Alan", [{ system_type_id: hvType.id }, { system_type_id: faType.id }]],
+];
+const controlLogins: Record<string, Awaited<ReturnType<typeof makeUser>>> = {};
+for (const [code, name, actions, email, given, scopes] of controlTypes) {
+  const t = await must(a1, "create_appointment_type", { p_idempotency_key: key(), p_venue_id: v.venueId, p_code: code, p_name: name });
+  const tv = await must(a1, "propose_appointment_type_version", {
+    p_idempotency_key: key(), p_appointment_type_id: t.id, p_allowed_action_codes: actions, p_eligible_permit_class_ids: classIds,
+    p_eligible_system_type_ids: [hvType.id, faType.id], p_grantable_type_ids: [], p_is_root_eligible: true, p_requires_competence_evidence: false,
+    p_owner_person_id: a1p!.person_id, p_effective_from: new Date(Date.now() - 60_000).toISOString(), p_change_reason: name });
+  await must(ae, "decide_appointment_type_version", { p_idempotency_key: key(), p_version_id: tv.id,
+    p_expected_version: await version("appointment_type_version", tv.id), p_decision: "approve", p_reason: "Agreed" });
+  const login = await makeUser(email);
+  controlLogins[code] = login;
+  const person = await must(a1, "create_person", { p_idempotency_key: key(), p_customer_id: v.customerId, p_given_name: given, p_family_name: "Engineer" });
+  await must(a1, "link_user_account", { p_idempotency_key: key(), p_person_id: person.id, p_auth_user_id: login.userId });
+  const appt = await must(a1, "record_root_appointment", {
+    p_idempotency_key: key(), p_venue_id: v.venueId, p_appointee_person_id: person.id, p_duty_holder_person_id: duty!.id,
+    p_type_version_id: tv.id, p_permit_class_ids: [], p_scopes: scopes, p_valid_from: new Date(Date.now() - 60_000).toISOString(),
+    p_valid_to: null, p_review_due_on: null, p_limitations_text: null, p_root_evidence_ref: `Letter of appointment ${code}-DEMO` });
+  await must(await signIn(v.admin2), "confirm_root_appointment", { p_idempotency_key: key(), p_appointment_id: appt.id,
+    p_expected_version: await version("appointment", appt.id) });
+  await must(await signIn(login), "acknowledge_appointment", { p_idempotency_key: key(), p_appointment_id: appt.id,
+    p_expected_version: await version("appointment", appt.id) });
+}
+const iris = await signIn(controlLogins.CT!);
+await must(iris, "publish_control_rule", { p_idempotency_key: key(), p_system_type_id: hvType.id, p_kind: "isolation",
+  p_content: { prove_by: "different_person", return_witness: "required" }, p_effective_from: new Date(Date.now() - 60_000).toISOString(),
+  p_change_reason: "DEMO CONTENT for local testing only" });
+await must(iris, "publish_control_rule", { p_idempotency_key: key(), p_system_type_id: faType.id, p_kind: "impairment",
+  p_content: { max_duration_hours: 4, compensatory_measures: ["Fire marshal patrol of the zone every 30 minutes"], notifications: ["Alarm receiving centre"] },
+  p_effective_from: new Date(Date.now() - 60_000).toISOString(), p_change_reason: "DEMO CONTENT for local testing only" });
+await must(a1, "publish_emergency_contacts", { p_idempotency_key: key(), p_venue_id: v.venueId,
+  p_contacts: [{ label: "Control room (demo)", phone: "020 7946 0000" }, { label: "First aid (demo)", phone: "020 7946 0001" }],
+  p_change_reason: "DEMO CONTENT for local testing only" });
+await must(a1, "register_custody_item", { p_idempotency_key: key(), p_venue_id: v.venueId, p_kind: "hatch_key", p_label: "Roof hatch 2 key",
+  p_reference: "K-RH2", p_area_id: null });
+
 writeFileSync(
   new URL("../.env.scanner.local", import.meta.url),
   [`SUPABASE_URL=${process.env.NEXT_PUBLIC_SUPABASE_URL}`, `SUPABASE_ANON_KEY=${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
@@ -194,5 +245,7 @@ console.log(JSON.stringify({
   contractor_admin: "cara+demo@contractor.local",
   technical_authority: "tara+demo@venue.local",
   permit_issuer: "ian+demo@venue.local",
+  controls_authority: "iris+demo@venue.local",
+  authorised_person: "alan+demo@venue.local",
   scanner_env: ".env.scanner.local",
 }, null, 2));

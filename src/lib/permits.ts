@@ -116,6 +116,88 @@ export interface PermitDetail {
     exceptions: Array<{ kind: string; outcome: string; conditions: string | null }>;
   } };
   acceptance: null | { accepted_at: string; by: string; briefed: string[]; briefed_at: string };
+  // Live state (phase 6).
+  window_end: string | null;
+  held: boolean;
+  reissue_pending: boolean;
+  last_accepted_at: string | null;
+  suspensions: Array<{ id: string; kind: string; category: string | null; reason: string; by: string | null; at: string; holding: boolean;
+    who_lifts: string; lift: null | { id: string; via: string; reason: string; conditions: string[]; by: string; at: string } }>;
+  open_lifts: Array<{ id: string; conditions: string[]; at: string }>;
+  team_live: Array<{ member_id: string; person_id: string; name: string; role: string; added_live: boolean; approval_required: boolean;
+    approved_at: string | null; briefed_at: string | null; counts: boolean; added_at: string; removed_at: string | null;
+    removal_reason: string | null; removed_by: string | null }>;
+  extensions: Array<{ id: string; previous_end: string; new_end: string; reason: string; by: string; at: string; acknowledged_at: string | null; sha256: string }>;
+  extension_rule: { max_count: number; max_total_hours: number } | null;
+  worker_add_rule: string | null;
+  revalidation: { chosen: boolean; required: boolean; every_hours?: number; last_at?: string; due_at?: string; overdue?: boolean };
+  reacceptances: Array<{ at: string; by: string; briefed: string[] }>;
+  controls: PermitControls;
+  close_out: PermitCloseOut;
+  emergency_contacts: Array<{ label: string; phone: string }> | null;
+}
+
+export interface Blocker { check?: string; duty?: string; problem: string; who: string }
+
+export interface PermitControls {
+  required: PhysicalControl[] | null;
+  blockers: Blocker[];
+  isolations: Array<{ id: string; system: string; points: string; status: string; row_version: number; failure_open: boolean;
+    locks: Array<{ id: string; person_id: string; name: string; lock_ref: string; on_at: string }>; steps: Array<{ step: string; by: string; at: string }> }>;
+  impairments: Array<{ id: string; system: string; zones: string; status: string; row_version: number; max_hours: number | null;
+    impaired_at: string | null; due_at: string | null; overdue: boolean; failure_open: boolean }>;
+  fire_watches: Array<{ id: string; phase: string; watcher: string; status: string; row_version: number; minimum_minutes: number;
+    started_at: string | null; ended_at: string | null; earliest_end: string | null }>;
+  exclusion_zones: Array<{ id: string; description: string; area: string | null; status: string; row_version: number; removed_at: string | null }>;
+  custody: Array<{ id: string; item: string; kind: string; reference: string; holder: string; issued_at: string; returned_at: string | null }>;
+}
+
+export interface PermitCloseOut {
+  duties: Blocker[];
+  live_area_ids: string[];
+  hand_back_declaration: string[] | null;
+  hand_back_inspection: string | null;
+  hand_backs: Array<{ id: string; from: string; route: string; work_complete: boolean; remaining_work: string | null; area_state: string; by: string; at: string;
+    decision: null | { outcome: string; inspection: string; reason: string; by: string; at: string } }>;
+  area_returns: Array<{ id: string; areas: string[]; area_state: string; by: string; at: string; outcome: string | null; decided_by: string | null; reason: string | null }>;
+  transferred: Array<{ kind: string; control_id: string; at: string; reason: string; owner: string | null }>;
+  abandoned: null | { reason: string; by: string; at: string };
+  close_out: null | { id: string; sha256: string; at: string };
+  emergency: null | { id: string; reference: string; category: string; authorised_by: string; at: string; deadline_at: string;
+    retrospective_submitted: boolean; overdue: boolean };
+}
+
+/** A live permit in a list (the board, or the team member's own permits). */
+export interface PermitSummary {
+  id: string; kind: string; status: string; class_name: string; job_reference: string; job_title: string; organisation: string;
+  areas: string[]; window_end: string | null; venue_timezone: string; role?: string;
+  holding: Array<{ id: string; kind: string; reason: string; at: string; who: string }>;
+  reissue_pending: boolean; extension_pending: boolean; revalidation_overdue: boolean; duties: number; area_return_pending: boolean; abandoned: boolean;
+}
+
+export const STOP_CATEGORY: Record<string, string> = {
+  unsafe_act: "Unsafe act or condition", change_in_conditions: "Change in conditions", control_failure: "A control has failed",
+  emergency: "Emergency", weather: "Weather", instruction: "Instruction from an authority", other: "Other",
+};
+
+export const SUSPENSION_KIND: Record<string, string> = {
+  stop: "Work stopped", job_stop: "Stopped with the rest of the job", area_stop: "Area stop", material_change: "The job changed",
+  supervisor_change: "Supervisor changed", parent_ended: "The Work Approval ended", control_failure: "A control failed",
+};
+
+export const CONTROL_STATE: Record<string, string> = {
+  requested: "Requested", authorised: "Authorised", refused: "Refused", withdrawn: "Withdrawn", applied: "Applied, not proved",
+  proved: "Proved", removed: "Removed", returned: "Returned to service", impaired: "Impaired", tested: "Reinstatement tested",
+  restored: "Restored", arranged: "Arranged", started: "Under way", ended: "Finished", set_up: "In place",
+};
+
+/** Time left until an instant, in words. */
+export function timeLeft(to: string | null | undefined): string {
+  if (!to) return "—";
+  const ms = new Date(to).getTime() - Date.now();
+  if (ms <= 0) return "ended";
+  const h = Math.floor(ms / 3_600_000);
+  return h >= 48 ? `${Math.floor(h / 24)} days left` : `${h} h ${Math.floor((ms % 3_600_000) / 60_000)} min left`;
 }
 
 /** Date and time in the venue's own time zone. */

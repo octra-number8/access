@@ -547,3 +547,47 @@ Implemented in `supabase/migrations/20261025000042` (catalogue, states, tables, 
 | 6c-1 | Should controls applied during emergency work be recorded as text on the emergency record for now? The design had them transfer to the retrospective permit; isolations and impairments would be requested against that permit once it exists. | **Yes, until Q91 and Q92 are defined.** Nobody is appointed to authorise emergency work yet (P6-11). When the technical authority defines the categories, build emergency-owned controls that transfer to the retrospective permit, using the 6c transfer route. |
 | 6c-2 | A rejected hand-back goes back to the state it came from, or to Expired if the window has ended, or to Suspended for a Work Approval with a held permit under it. Is that right? | **Yes.** It never restarts work that the record does not support. |
 | 6c-3 | Should area stops, restriction checks and the gate keep using the job's full areas after a partial return of areas? | **Yes, for now.** It errs towards stopping. Phase 7's gate should use the narrowed live scope for who may be where. |
+
+---
+
+## 19. As built (phase 6d, 26 October 2026)
+
+Screens for live control. Migration `20261025000044` adds the reads the screens need, venue emergency contacts, and one fix. Proved by pgTAP `33_live_screens` (12 assertions; 1,144 in the whole suite, through both test runners), the unit and end-to-end tests, and a browser walkthrough.
+
+| Screen | Who | What |
+|---|---|---|
+| Live permit (`/permits/[id]`, phone first) | The supervisor and team; each authority sees its own actions | Status in words, with what it means for the work. What holds the permit and who lifts it. A Stop work form. Scope and limits, live areas, time left in venue time, the team that counts, every condition (including those set when a stop was lifted), linked permits, physical controls and what blocks them, revalidation due, emergency contacts, and who issued it. Actions by role: accept, re-brief and re-accept, revalidate, acknowledge an extension, add, brief or remove a team member, lock on or off, arrange and record fire watches, set up or remove an exclusion zone, ask for an isolation or impairment, report a failed control, hand back all or some areas. Authorities can also lift a stop, extend, approve an addition, change the supervisor, accept or reject a hand-back or a return of areas, cancel before acceptance, and flag a job abandoned. A permit waiting for reissue shows the request form to prepare it again. |
+| Home | Everyone | "Your live permits": the permits the person is on the team of, with state, areas and time left, so a supervisor finds theirs on a phone. Links to the new screens. |
+| Live board (`/live`) | Venue appointees and administrators | Live permits ordered by what needs action, each with what it needs and who owns it (stops and who lifts them, hand-backs to accept, expired with duties, extensions to acknowledge, revalidation overdue, areas returned). Area stops in force with a lift form. A form to stop an area. Emergency work whose retrospective permit is overdue. |
+| Controls desk (`/controls`) | Isolation and impairment authorities, authorised persons, administrators | Each isolation and impairment with the step it is waiting for, and the form for that step. Failures to lift once restored. Personal locks to remove for an absent holder. Taking ownership of a continuing control. Overdue impairments to authorise to continue. The custody register (add, issue against a permit, return). The rules per system type, and a form to publish them. |
+| Emergency work (`/emergency`) | Venue authorities, administrators, contractor administrators | The register with each record's retrospective permit state (in, due or overdue, with who acts). Authorising emergency work, only once the venue has defined it. Linking the retrospective job (the contractor). The venue's definitions. The venue's emergency contacts. |
+
+| Area | As built | Note |
+|---|---|---|
+| Emergency contacts (CLAUDE.md §6) | `venue_emergency_contacts`: immutable versions of venue numbers (label and phone), published by a tenant administrator with a reason. Shown on every live permit to everyone who can see it. Until published, the live view says the venue has not published them. There is no default number. | New configuration. See 6d-1. |
+| Reads | `api.my_live_permits()`, `api.live_board()`, and `core.permit_summary` behind both. Personal locks in `permit_detail` now carry the holder, so a holder can take their own lock off. | |
+| Fix (6b) | The impairment refusal put its list of missing measures in the `missing` field, overwriting the "what is missing" wording every refusal screen shows. The list now travels as `items`. | Found while wiring the screens; test 31 now checks both. |
+| Demo seed | Two demo system types and systems (HV ring, fire alarm panel), a controls authority (Iris) and an authorised person (Alan), demo isolation and impairment rules, demo emergency contacts, and a roof hatch key. The issuer (Ian) can also accept hand-backs and stop or lift area stops. Still no emergency authority, and no emergency definitions (P6-11). | All marked as demo content. |
+
+**Browser walkthrough** (local stack, demo seed). A scratch script, not committed, used the real API to take one job to live permits: Work Approval and work at height active, and an isolation permit waiting on its isolation. Then, in the browser:
+- **Cara (supervisor, phone width):** found her live permits on the home page, opened the work-at-height permit, and stopped work. Both permits showed Stopped, with who lifts each stop.
+- **Ian (issuer, desktop):** saw both permits on the live board with what each needs, and lifted the stop with a condition.
+- **Cara:** re-accepted the Work Approval, then the work-at-height permit, acknowledging the new condition, and handed the work-at-height permit back.
+- **Iris (controls authority):** the controls desk showed the isolation as applied, not proved. Proving it was refused, with the full explanation, because her appointment does not cover proving.
+- **Ian:** accepted the hand-back, and the permit closed.
+
+The emergency page rendered correctly for a venue with no definitions. No console errors.
+
+Not exercised in the browser, though each has database tests: the team, extension, fire watch, exclusion zone, custody, area return, transfer and emergency forms.
+
+Found and fixed during the walkthrough:
+- Wording: who lifts a stop, a lifted condition's origin, and the state between a lift and re-acceptance.
+- The home page's links no longer read as part of the live permits list.
+- Custody times were shown in the server's time zone.
+
+### Decisions raised by the 6d build
+
+| # | Question | Recommendation |
+|---|---|---|
+| 6d-1 | Should venue emergency contacts be versioned venue configuration, published by a tenant administrator and shown on every live permit? | **Yes.** CLAUDE.md §6 requires them on the live view, and they are venue numbers, not personal data. The pilot venue should publish them before go-live. |
+| 6d-2 | Should a reviewer whose appointment covers areas but not systems be refused a job that names a system? In the walkthrough, the demo technical authority could not review a job naming HV1. | **Keep it strict.** Appoint the pilot's reviewers with the systems they review. An area appointment should not silently cover the building systems in it (D-008). |

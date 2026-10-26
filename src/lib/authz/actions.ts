@@ -237,6 +237,7 @@ export const AUTHORITY_ACTIONS = [
   "emergency.authorise",
   "emergency.link_retrospective",
   "emergency.link_retrospective_for_venue",
+  "venue_emergency_contacts.publish",
 ] as const;
 
 export type AuthorityAction = (typeof AUTHORITY_ACTIONS)[number];

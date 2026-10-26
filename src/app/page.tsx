@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PERMIT_STATE, type PermitSummary, timeLeft } from "@/lib/permits";
 import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -13,11 +14,23 @@ export default async function Home() {
       </>
     );
   }
-  const { data: isOps } = await (await supabaseServer()).rpc("am_platform_admin");
+  const db = await supabaseServer();
+  const [{ data: isOps }, { data: mine }] = await Promise.all([db.rpc("am_platform_admin"), db.rpc("my_live_permits")]);
+  const permits = ((mine as { permits?: PermitSummary[] } | null)?.permits ?? []);
   return (
     <>
       <h1>Signed in</h1>
       <p className="muted">{session.email}</p>
+      {permits.length ? (
+        <>
+          <h2>Your live permits</h2>
+          <ul className="stack">{permits.map((p) => (
+            <li key={p.id}><Link href={`/permits/${p.id}`}><strong>{PERMIT_STATE[p.status] ?? p.status}</strong>: {p.job_reference} {p.class_name}</Link>
+              <span className="muted"> · {p.areas.join(", ")} · {timeLeft(p.window_end)}{p.role === "supervisor" ? " · you supervise" : ""}</span></li>
+          ))}</ul>
+          <h2>Your pages</h2>
+        </>
+      ) : null}
       <ul>
         {session.personIds.length > 0 ? <li><Link href="/me">Your details and organisations</Link></li> : null}
         {session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/venue">Venue administration</Link></li> : null}
@@ -29,6 +42,9 @@ export default async function Home() {
           <li key={o.organisation_id}><Link href={`/organisation/${o.organisation_id}`}>Your organisation</Link> ({o.role} administrator)</li>
         ))}
         {session.appointmentVenueIds.length > 0 ? <li><Link href="/review">Decisions waiting for you</Link></li> : null}
+        {session.appointmentVenueIds.length > 0 || session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/live">Live board</Link></li> : null}
+        {session.appointmentVenueIds.length > 0 || session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/controls">Controls desk</Link></li> : null}
+        {session.appointmentVenueIds.length > 0 || session.tenantAdminCustomerIds.length > 0 || session.organisationAdmin.length > 0 ? <li><Link href="/emergency">Emergency work</Link></li> : null}
         {session.appointmentVenueIds.length > 0 ? <li><Link href="/facilitate">Record a facilitated induction</Link></li> : null}
         {isOps ? <li><Link href="/operations">Platform operations</Link></li> : null}
       </ul>

@@ -45,6 +45,13 @@ export function ConfigView({ config, names }: { config: ClassConfig; names: Map<
         <h4 className="m-0">Submission declaration</h4>
         {config.submission_declaration.length === 0 ? <p className="m-0">Not written.</p> : <ul>{config.submission_declaration.map((d, i) => <li key={i}>{d}</li>)}</ul>}
       </div>
+      <p className="m-0"><strong>Hand-back inspection:</strong> {config.hand_back_inspection === undefined ? "Not chosen"
+        : config.hand_back_inspection === "in_person" ? "in person" : "may be accepted remotely"}</p>
+      <div>
+        <h4 className="m-0">Hand-back declaration</h4>
+        {(config.hand_back_declaration ?? []).length === 0 ? <p className="m-0">Not written.</p>
+          : <ul>{config.hand_back_declaration!.map((d, i) => <li key={i}>{d}</li>)}</ul>}
+      </div>
       <div>
         <h4 className="m-0">Acceptance declaration</h4>
         {config.acceptance_declaration.length === 0 ? <p className="m-0">Not written.</p> : <ul>{config.acceptance_declaration.map((d, i) => <li key={i}>{d}</li>)}</ul>}

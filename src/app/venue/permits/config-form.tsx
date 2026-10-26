@@ -120,6 +120,11 @@ export function ConfigForm({ versionId, config, newKey, systemTypes, courses, co
       </label>
       <label>Submission declaration, one item per line (Q68)<textarea name="submission_declaration" rows={3} defaultValue={config.submission_declaration.join("\n")} /></label>
       <label>Acceptance declaration, one item per line (Q101)<textarea name="acceptance_declaration" rows={3} defaultValue={config.acceptance_declaration.join("\n")} /></label>
+      <label>Hand-back declaration, one item per line (Q113)<textarea name="hand_back_declaration" rows={3} defaultValue={(config.hand_back_declaration ?? []).join("\n")} /></label>
+      <label>Hand-back inspection (Q114)
+        <select name="hand_back_inspection" defaultValue={config.hand_back_inspection ?? ""}><option value="">— Choose —</option>
+          <option value="in_person">Inspected in person</option><option value="remote_allowed">May be accepted remotely</option></select>
+      </label>
     </ActionForm>
   );
 }

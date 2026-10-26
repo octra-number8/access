@@ -225,6 +225,18 @@ export const AUTHORITY_ACTIONS = [
   "control.report_failure_as_authority",
   "control.lift_failure",
   "isolation.failed",
+  "permit.hand_back_submit",
+  "permit.close_out_for_issuer",
+  "permit.hand_back_accept",
+  "permit.return_areas",
+  "permit.cancel_issued",
+  "permit.flag_abandoned",
+  "isolation.transfer",
+  "impairment.transfer",
+  "emergency_config.publish",
+  "emergency.authorise",
+  "emergency.link_retrospective",
+  "emergency.link_retrospective_for_venue",
 ] as const;
 
 export type AuthorityAction = (typeof AUTHORITY_ACTIONS)[number];

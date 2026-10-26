@@ -33,7 +33,9 @@ create function tests.class_config(p_route jsonb, p_questions jsonb default '[]'
     -- Live rules (phase 6a), also chosen explicitly as test values.
     'extension', jsonb_build_object('max_count', 0, 'max_total_hours', 0),
     'worker_add', 'supervisor',
-    'revalidation', jsonb_build_object('mode', 'none')) $$;
+    'revalidation', jsonb_build_object('mode', 'none'),
+    'hand_back_declaration', jsonb_build_array('The work area is left safe and tidy.', 'Everyone has left the work area.'),
+    'hand_back_inspection', 'in_person') $$;
 
 create function tests.configure_class(p_class uuid, p_content jsonb) returns uuid language plpgsql as $$
 declare v uuid;

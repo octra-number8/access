@@ -9,66 +9,11 @@ begin;
 select tests.approve_screening();
 \ir _phase5.psql
 \ir _phase6.psql
+\ir _phase6b.psql
 select no_plan();
 
 create temp table t_r (name text primary key, v jsonb);
 grant all on t_r to authenticated;
-
--- ---- Authorities scoped to systems (P6-9) ---------------------------------------------------------
--- A person with a root appointment of the given type over the given systems.
-create function tests.root_sys(p_email text, p_given text, p_type_version uuid, p_systems uuid[]) returns uuid[]
-language plpgsql as $$
-declare u uuid := tests.new_user(p_email); p uuid; ap uuid;
-begin
-  perform tests.login(tests.w('u_a1'));
-  p := tests.must(api.create_person(tests.key(), tests.w('cust_a'), p_given, 'Engineer', p_email => p_email));
-  perform tests.must(api.link_user_account(tests.key(), p, u));
-  ap := tests.must(api.record_root_appointment(tests.key(), tests.w('v1'), p, tests.w('p_d'), p_type_version, '{}',
-    (select jsonb_agg(jsonb_build_object('system_id', s)) from unnest(p_systems) s), now() - interval '1 minute', null, null, null,
-    'Letter of appointment ' || p_given));
-  perform tests.login(tests.w('u_a2'));
-  perform tests.must(api.confirm_root_appointment(tests.key(), ap, tests.version('core.appointment', ap)));
-  perform tests.login(u);
-  perform tests.must(api.acknowledge_appointment(tests.key(), ap, tests.version('core.appointment', ap)));
-  perform tests.logout();
-  return array[u, p];
-end $$;
-create function tests.new_type(p_code text, p_name text, p_actions text[], p_system_types uuid[]) returns uuid language plpgsql as $$
-declare t uuid; tv uuid;
-begin
-  perform tests.login(tests.w('u_a1'));
-  t := tests.must(api.create_appointment_type(tests.key(), tests.w('v1'), p_code, p_name));
-  tv := tests.must(api.propose_appointment_type_version(tests.key(), t, p_actions, array[tests.w('pc_wa'), tests.w('pc_wah'), tests.w('pc_hw')],
-    p_system_types, '{}', true, false, tests.w('p_a1'), now() - interval '1 minute', p_name));
-  perform tests.login(tests.w('u_r'));
-  perform tests.must(api.decide_appointment_type_version(tests.key(), tv, tests.version('core.appointment_type_version', tv), 'approve', 'Agreed'));
-  perform tests.logout();
-  return tv;
-end $$;
-grant execute on all functions in schema tests to authenticated;
-
-select tests.set_w('tv_ia', tests.new_type('IA', 'Isolation Authority',
-  array['isolation.authorise', 'isolation.withdraw', 'isolation.remove', 'isolation.return', 'isolation.lock_off_on_behalf',
-        'impairment.authorise', 'impairment.reauthorise', 'impairment.withdraw', 'control.lift_failure', 'control.report_failure_as_authority'],
-  array[tests.w('st_hv'), tests.w('st_fa')]));
-select tests.set_w('tv_ap', tests.new_type('AP', 'Authorised Person',
-  array['isolation.apply', 'isolation.prove', 'impairment.impair', 'impairment.test', 'impairment.restore'], array[tests.w('st_hv'), tests.w('st_fa')]));
-select tests.set_w('tv_tr', tests.new_type('TR', 'Technical Rules', array['control_rule.publish', 'custody.issue', 'custody.return'], '{}'));
-select tests.set_w('u_ada', (tests.root_sys('ada@a.test', 'Ada', tests.w('tv_ia'), array[tests.w('hv1'), tests.w('fa1')]))[1]);
-select tests.set_w('u_abe', (tests.root_sys('abe@a.test', 'Abe', tests.w('tv_ia'), array[tests.w('fa1')]))[1]);
-select tests.set_w('u_al', (tests.root_sys('al@a.test', 'Al', tests.w('tv_ap'), array[tests.w('hv1'), tests.w('fa1')]))[1]);
-select tests.set_w('x_bo', (tests.root_sys('bo@a.test', 'Bo', tests.w('tv_ap'), array[tests.w('hv1'), tests.w('fa1')]))[2]);
-select tests.set_w('u_bo', (select ua.auth_user_id from core.user_account ua where ua.person_id = tests.w('x_bo')));
-select tests.set_w('u_tom', (tests.root_ta('tom@a.test', 'Tom', tests.w('tv_tr'), array[tests.w('pc_wa')], tests.w('site')))[1]);
--- OP, the contractor's supervisor, is also appointed as an isolation authority for HV1.
-select tests.login(tests.w('u_a1'));
-select tests.set_w('ap_op_ia', tests.must(api.record_root_appointment(tests.key(), tests.w('v1'), tests.w('p_op'), tests.w('p_d'), tests.w('tv_ia'), '{}',
-  jsonb_build_array(jsonb_build_object('system_id', tests.w('hv1'))), now() - interval '1 minute', null, null, null, 'Letter of appointment OP-IA')));
-select tests.login(tests.w('u_a2'));
-select tests.must(api.confirm_root_appointment(tests.key(), tests.w('ap_op_ia'), tests.version('core.appointment', tests.w('ap_op_ia'))));
-select tests.login(tests.w('u_op'));
-select tests.must(api.acknowledge_appointment(tests.key(), tests.w('ap_op_ia'), tests.version('core.appointment', tests.w('ap_op_ia'))));
-select tests.logout();
 
 -- ---- Configuration has no default (P6-8) ------------------------------------------------------------
 select ok(array_to_string(core.validate_class_config(tests.w('v1'), tests.class_config('[{"key": "r", "name": "R", "kind": "review", "group": 1}]')

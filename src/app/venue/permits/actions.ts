@@ -85,6 +85,10 @@ export async function saveClassSettings(_: ActionResult, f: FormData): Promise<A
       }
       next.physical_controls = list;
     }
+    const handBack = lines(text(f, "hand_back_declaration"));
+    if (handBack.length > 0) next.hand_back_declaration = handBack; else delete next.hand_back_declaration;
+    const inspection = text(f, "hand_back_inspection");
+    if (inspection === "in_person" || inspection === "remote_allowed") next.hand_back_inspection = inspection; else delete next.hand_back_inspection;
     const prohibited = choice(text(f, "override_prohibited"));
     if (prohibited === undefined) delete next.override_prohibited; else next.override_prohibited = prohibited;
     if (notice) next.notice = notice; else delete next.notice;

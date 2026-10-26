@@ -21,6 +21,9 @@ export interface ClassConfig {
   extension?: { max_count: number; max_total_hours: number };
   worker_add?: "supervisor" | "issuer_approval";
   revalidation?: { mode: "none" } | { mode: "interval"; every_hours: number };
+  // Hand-back (phase 6c): what the supervisor confirms, and how it is inspected. No default.
+  hand_back_declaration?: string[];
+  hand_back_inspection?: "in_person" | "remote_allowed";
   notice?: { amount: number; unit: "working_days" | "calendar_days" | "hours"; cutoff_applies: boolean; restart_on_resubmission: boolean };
   evidence?: { induction_course_ids: string[]; team_competency_type_ids: string[]; supervisor_competency_type_ids: string[] };
 }
@@ -47,6 +50,8 @@ export const PERMIT_STATE: Record<string, string> = {
   cancelled: "Cancelled",
   expired: "Expired",
   suspended: "Suspended",
+  hand_back_pending: "Hand-back pending",
+  closed: "Closed",
 };
 
 export const STEP_KIND: Record<string, string> = {

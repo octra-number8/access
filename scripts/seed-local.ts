@@ -143,6 +143,8 @@ const demoConfig = (route: unknown[], notice: number, controls: unknown[], quest
   evidence: { induction_course_ids: [], team_competency_type_ids: [], supervisor_competency_type_ids: [] },
   // Demo live rules only: the venue must choose its own (P6-5 to P6-7).
   extension: { max_count: 1, max_total_hours: 4 }, worker_add: "issuer_approval", revalidation: { mode: "none" },
+  hand_back_declaration: ["The work is finished, or what remains is recorded.", "The area is left safe, clear and tidy.", "Everyone has left the work area."],
+  hand_back_inspection: "in_person",
 });
 const tara2 = await signIn(taraLogin);
 // The starter screening set (P4-2), approved for local testing only.

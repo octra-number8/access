@@ -238,6 +238,19 @@ export const AUTHORITY_ACTIONS = [
   "emergency.link_retrospective",
   "emergency.link_retrospective_for_venue",
   "venue_emergency_contacts.publish",
+  "entry_rule_version.draft",
+  "entry_rule_version.save_draft",
+  "entry_rule_version.propose",
+  "entry_rule_version.approve",
+  "entry_rule_version.reject",
+  "entry_rule_version.supersede",
+  "gate_point.create",
+  "pass.issue_card",
+  "pass.create_phone",
+  "pass.revoke",
+  "pass.revoke_for_venue",
+  "gate.operate",
+  "gate.override",
 ] as const;
 
 export type AuthorityAction = (typeof AUTHORITY_ACTIONS)[number];

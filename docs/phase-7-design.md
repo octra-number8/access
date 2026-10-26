@@ -332,3 +332,28 @@ Implemented in `supabase/migrations/20261025000045` (catalogue, tables, the eval
 | 7a-1 | Should an operator act on a gate result only within 5 minutes of the scan, fixed in code rather than set by the venue? | **Yes.** It enforces invariant 11 at the gate; a venue that wants it shorter can ask, but it should never be longer. |
 | 7a-2 | Escort is "never" or "always" per audience; escort by area (for example plant rooms only) is not built. Is that enough for the pilot? | **Yes, for now.** A plant-room audience with "always" covers it. Revisit with the venue's access matrix (Q123, Q124). |
 | 7a-3 | A person with several engagements is admitted on the most favourable one that fully qualifies. Is that right? | **Yes.** Each engagement is a separate, legitimate reason to be there; the gate shows which one it used. |
+
+---
+
+## 16. As built (phase 7b, 26 October 2026)
+
+Implemented in `supabase/migrations/20261025000047` (catalogue, tables, consent) and `…48` (API, the evaluation restated, attendance). Proved by pgTAP `35_access_visits` (45 assertions; 1,253 in the whole suite, through both test runners). Mutation testing caught all fourteen deliberate weakenings, one after a test was made more specific. The gate tests (34) pass unchanged against the restated evaluation. No screens yet (7c).
+
+| Area | As built | Note |
+|---|---|---|
+| Purposes (Q121, Q162) | A versioned venue configuration document of kind `access_purposes`, with the same draft, propose and approve route as entry rules. The approver holds `venue_config.approve` and is never the author. For each purpose: name, what it allows, what it prohibits, inductions needed (may be none, stated), escort (never or always), and whether an occupier must consent. No visit can be requested until purposes are approved. | The same document type will carry the outage procedure (7d). Roof access without work is a purpose the venue's technical authority defines and approves like any other. |
+| Visit request (Q125) | By an administrator of the organisation (or the venue). For a purpose, a description, areas, a window (one visit or a series) and a roster of people who currently work with the organisation. The organisation needs an active, unrestricted engagement covering the dates. Each visit gets an `AV-` reference. | |
+| Occupier consent (Q123) | Where the purpose needs it: for every area in the visit that another organisation occupies during it (the area occupation register, P5-6), by an appointee holding `access.consent_occupier` for that area. Given or refused, with a reason. | |
+| Approval (Q123, Q124) | By an appointee holding `access.approve` covering every area, never anyone working with the organisation, nor whoever asked. Refused while a consent is pending or refused. A purpose that is always escorted needs the escort named. Conditions recorded: escort, no photography, confidentiality, other. Can also be refused. | |
+| Roster (Q125) | Removals take effect at once. People added after approval count only once approved, like the original. | |
+| Cancellation | The organisation or venue can withdraw a request or cancel an approved visit; an access authority can cancel an approved one. | |
+| At the gate | The evaluation now also accepts an approved visit naming the person, in force now, with the organisation's engagement still active, as a reason to be there. The purpose's inductions apply, and an escort from the purpose or the conditions makes it Admit with escort. The result names the visit, its purpose and conditions, with the notice "Visit only: [allows]. Not allowed: [prohibits]." Admitted scans record arrivals and departures against the visit (`visit_attendance`). | The evaluation was restated in full; its engagement logic is unchanged. |
+| Linked work request (Q122) | A job by the visiting organisation at the same venue can be linked to an approved visit. The visit is unchanged and no permit is created: the job follows the normal route. | The screens (7c) will prefill a new job from the visit. |
+| Visibility | The requesting organisation, people on the roster, the venue's administrators and appointees. Another organisation (including the occupier) or another tenant cannot see visits. | |
+
+### Decisions raised by the 7b build
+
+| # | Question | Recommendation |
+|---|---|---|
+| 7b-1 | Attendance is recorded from gate scans only. Should an escort also be able to record arrivals inside the venue, for visits that do not pass a scanning gate? | **Not for the pilot.** Every visit should enter through a gate point. Revisit if the venue has unscanned entrances for visitors. |
+| 7b-2 | Can an occupier's representative see the visit they consent to only through their appointment (as a venue appointee), never as their organisation? | **Yes.** The occupier's organisation does not see other organisations' visits (privacy, G11). Its appointed representative sees what they decide. |

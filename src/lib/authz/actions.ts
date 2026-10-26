@@ -251,6 +251,22 @@ export const AUTHORITY_ACTIONS = [
   "pass.revoke_for_venue",
   "gate.operate",
   "gate.override",
+  "venue_config.draft",
+  "venue_config.save_draft",
+  "venue_config.propose",
+  "venue_config.approve",
+  "venue_config.reject",
+  "venue_config.supersede",
+  "access.request",
+  "access.request_for_venue",
+  "access.approve",
+  "access.consent_occupier",
+  "access.change_roster",
+  "access.change_roster_for_venue",
+  "access.cancel",
+  "access.cancel_for_venue",
+  "access.cancel_as_authority",
+  "access.link_work_request",
 ] as const;
 
 export type AuthorityAction = (typeof AUTHORITY_ACTIONS)[number];

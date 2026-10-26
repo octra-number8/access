@@ -255,7 +255,7 @@ select tests.set_w('ct', tests.must(api.create_competency_type(tests.key(), test
 select tests.set_w('cv_wah3', tests.configure_class(tests.w('pc_wah'), jsonb_set(jsonb_set(tests.class_config(
   '[{"key": "rams", "name": "RAMS review", "kind": "review", "group": 1}]',
   '[{"key": "access", "text": "How will people reach the work?", "type": "choose_one", "options": [{"key": "mewp", "text": "MEWP"}, {"key": "scaffold", "text": "Scaffold"}]}]'),
-  '{evidence,team_competency_type_ids}', jsonb_build_array(tests.w('ct'))), '{requires_physical_controls}', 'true')));
+  '{evidence,team_competency_type_ids}', jsonb_build_array(tests.w('ct'))), '{physical_controls}', '[{"kind": "isolation"}]')));
 select tests.set_w('wp5', tests.today_job('High lamps', array[tests.w('pc_wah')]));
 select tests.approve_permit(tests.permit_of(tests.w('wp5'), tests.w('pc_wah')), '{"access": ["mewp"]}');
 select tests.login(tests.w('u_ivy'));
@@ -263,8 +263,8 @@ insert into t_r select 'b5', api.issue_blockers(tests.permit_of(tests.w('wp5'), 
 select ok((select v::text from t_r where name = 'b5') like '%Oli Operative has no checked IPAF 3a/3b%'
       and (select v::text from t_r where name = 'b5') like '%Owen Operative has no checked IPAF 3a/3b%',
   'every team member needs the class''s checked competency for the dates (Q99)');
-select ok((select v::text from t_r where name = 'b5') like '%needs physical controls%',
-  'and a class that needs physical controls cannot be issued yet (P5-11)');
+select ok((select v::text from t_r where name = 'b5') like '%needs an isolation, and none is linked%',
+  'and a class that needs an isolation cannot be issued without one in place (P6-8)');
 
 -- ---- Issued on the day, not before (Q102, P5-10) ---------------------------------------------------
 select tests.set_w('wp7', tests.new_job(tests.wp_input(p_areas => array[tests.w('hall1')], p_title => 'Next week', p_supervisor => tests.w('p_op'))));

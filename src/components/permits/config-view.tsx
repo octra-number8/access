@@ -1,4 +1,4 @@
-import { type ClassConfig, noticeText, STEP_KIND } from "@/lib/permits";
+import { type ClassConfig, CONTROL_KIND, noticeText, STEP_KIND } from "@/lib/permits";
 import { answersOf } from "@/lib/screening/content";
 
 const yesNo = (v: boolean | undefined) => (v === undefined ? "Not chosen" : v ? "Yes" : "No");
@@ -22,8 +22,12 @@ export function ConfigView({ config, names }: { config: ClassConfig; names: Map<
         )}
       </div>
       <p className="m-0"><strong>Notice:</strong> {noticeText(config.notice)}</p>
-      <p className="m-0"><strong>Needs physical controls</strong> (isolation, impairment or fire watch): {yesNo(config.requires_physical_controls)}
-        {config.requires_physical_controls ? <span className="muted"> — cannot be issued until live controls are available</span> : null}</p>
+      <p className="m-0"><strong>Physical controls:</strong> {config.physical_controls === undefined
+        ? <>Not chosen <span className="muted">— this version cannot be issued (P6-8)</span></>
+        : config.physical_controls.length === 0 ? "None (chosen)"
+        : config.physical_controls.map((c) => c.kind === "fire_watch"
+            ? `fire watch (${c.during_work ? "during the work and " : ""}${c.post_work_minutes} minutes after)`
+            : CONTROL_KIND[c.kind].toLowerCase()).join("; ")}</p>
       <p className="m-0"><strong>Late-notice exceptions prohibited:</strong> {yesNo(config.override_prohibited)}</p>
       <p className="m-0"><strong>Extensions:</strong> {config.extension === undefined ? "Not chosen"
         : config.extension.max_count === 0 ? "None allowed (chosen)"

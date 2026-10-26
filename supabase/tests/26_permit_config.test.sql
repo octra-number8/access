@@ -18,8 +18,8 @@ select ok(array_to_string(core.validate_class_config(tests.w('v1'),
   tests.class_config('[{"key": "o", "name": "Occupier", "kind": "occupier", "group": 1}]'), true), ' ')
   like '%review step that always applies%', 'and at least one review step that always applies');
 select ok(array_to_string(core.validate_class_config(tests.w('v1'),
-  tests.class_config('[{"key": "a", "name": "A", "kind": "review", "group": 1}]') - 'requires_physical_controls', true), ' ')
-  like '%physical controls%', 'whether the class needs physical controls must be chosen (no default)');
+  tests.class_config('[{"key": "a", "name": "A", "kind": "review", "group": 1}]') - 'physical_controls', true), ' ')
+  like '%physical controls%', 'which physical controls the class needs must be chosen (no default)');
 select ok(array_to_string(core.validate_class_config(tests.w('v1'),
   jsonb_set(tests.class_config('[{"key": "a", "name": "A", "kind": "review", "group": 1}]'), '{acceptance_declaration}', '[]'), true), ' ')
   like '%supervisor makes on acceptance%', 'and so must the acceptance declaration');

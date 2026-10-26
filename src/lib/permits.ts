@@ -13,7 +13,9 @@ export interface ClassConfig {
   route: RouteStep[];
   submission_declaration: string[];
   acceptance_declaration: string[];
+  /** Replaced by physical_controls (P6-8); kept only to read older versions. */
   requires_physical_controls?: boolean;
+  physical_controls?: PhysicalControl[];
   override_prohibited?: boolean;
   // Live rules (phase 6a): each must be chosen; none has a default.
   extension?: { max_count: number; max_total_hours: number };
@@ -22,6 +24,14 @@ export interface ClassConfig {
   notice?: { amount: number; unit: "working_days" | "calendar_days" | "hours"; cutoff_applies: boolean; restart_on_resubmission: boolean };
   evidence?: { induction_course_ids: string[]; team_competency_type_ids: string[]; supervisor_competency_type_ids: string[] };
 }
+
+export type PhysicalControl =
+  | { kind: "isolation" } | { kind: "impairment" } | { kind: "exclusion_zone" }
+  | { kind: "fire_watch"; during_work: boolean; post_work_minutes: number };
+
+export const CONTROL_KIND: Record<PhysicalControl["kind"], string> = {
+  isolation: "Isolation", impairment: "Impairment", fire_watch: "Fire watch", exclusion_zone: "Exclusion zone",
+};
 
 export const EMPTY_CONFIG: ClassConfig = { questions: [], route: [], submission_declaration: [], acceptance_declaration: [] };
 

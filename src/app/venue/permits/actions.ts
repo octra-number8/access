@@ -6,7 +6,7 @@
 
 import type { ActionResult } from "@/components/ActionForm";
 import { failure, optional, run, text } from "@/lib/action-helpers";
-import { type ClassConfig, fromVenueLocal, type RouteStep } from "@/lib/permits";
+import { type ClassConfig, fromVenueLocal, type PhysicalControl, type RouteStep } from "@/lib/permits";
 import { answersOf, slug } from "@/lib/screening/content";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -66,9 +66,26 @@ export async function saveClassSettings(_: ActionResult, f: FormData): Promise<A
                   team_competency_type_ids: f.getAll("team_competency_type_ids").map(String),
                   supervisor_competency_type_ids: f.getAll("supervisor_competency_type_ids").map(String) },
     };
-    const controls = choice(text(f, "requires_physical_controls"));
+    // Physical controls (P6-8): not chosen, none, or a list. The old yes/no choice is dropped.
+    delete next.requires_physical_controls;
+    const controlsChoice = text(f, "controls_choice");
+    if (controlsChoice === "") delete next.physical_controls;
+    else if (controlsChoice === "none") next.physical_controls = [];
+    else {
+      const kinds = f.getAll("control_kind").map(String);
+      if (kinds.length === 0) return "Tick the physical controls this class needs, or choose none.";
+      const list: PhysicalControl[] = [];
+      for (const k of kinds) {
+        if (k === "fire_watch") {
+          if (text(f, "fire_watch_during") === "" || text(f, "fire_watch_minutes") === "") {
+            return "For a fire watch, choose whether it runs during the work and how many minutes it runs after.";
+          }
+          list.push({ kind: "fire_watch", during_work: text(f, "fire_watch_during") === "yes", post_work_minutes: Number(text(f, "fire_watch_minutes")) });
+        } else if (k === "isolation" || k === "impairment" || k === "exclusion_zone") list.push({ kind: k });
+      }
+      next.physical_controls = list;
+    }
     const prohibited = choice(text(f, "override_prohibited"));
-    if (controls === undefined) delete next.requires_physical_controls; else next.requires_physical_controls = controls;
     if (prohibited === undefined) delete next.override_prohibited; else next.override_prohibited = prohibited;
     if (notice) next.notice = notice; else delete next.notice;
     // Live rules (P6-5 to P6-7): left blank means not chosen; the database refuses approval until each is.

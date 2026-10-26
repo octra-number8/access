@@ -474,3 +474,45 @@ Also fixed: on the venue's permit set-up page, a dropdown showed its old value s
 | 6a-1 | A child permit whose own window ends normally expires without stopping its Work Approval. Is that right? Invariant 4 is enforced live for suspended children, and for expired children only at issue. | **Yes.** A hot-works permit for day one of a three-day job ending is the normal case, not a block on the rest of the job. A child that must outlive its work is extended instead. |
 | 6a-2 | Should stop categories be fixed in code (unsafe act, change in conditions, control failure, emergency, weather, instruction, other) rather than venue configuration? | **Yes.** A stop must never depend on configuration being in place. The categories decide nothing about who lifts; the kind of suspension does. |
 | 6a-3 | Should a class be able to set a minimum team size that a removal cannot go below? | **Not yet.** Ask the technical authority whether any launch class needs it (for example a rescue cover or a spotter). It can be added later as class configuration. |
+
+---
+
+## 17. As built (phase 6b, 25 October 2026)
+
+Implemented in `supabase/migrations/20261025000040` (catalogue, states, tables, rules) and `…41` (API and wiring). Proved by pgTAP `31_physical_controls` (107 assertions; 1,037 in the whole suite) and by mutation testing: twenty-four deliberate weakenings, all stopped. Twenty-three were caught by the tests. The other weakened the API check that stops a key being issued twice; the database's unique index still refused it. Two assertions were added after the first mutation run let two weakenings through. No screens yet (6d), except the class configuration fields.
+
+| Area | As built | Note |
+|---|---|---|
+| Class configuration (P6-8) | `physical_controls` is a list: isolation, impairment, exclusion zone, and fire watch (whether during the work, and minutes after). An empty list means none, chosen. It must be present before a version can be approved; the old yes/no flag is refused in new versions. A version without the list, approved before 6b, blocks issue with "has not chosen its physical controls". | Approved versions are immutable, so they are not rewritten: the blocker reads their absence. This replaces the P5-11 block. |
+| Rules per system type (P6-9) | `system_control_rule`: immutable versions with an owner, an effective date and a source. **Isolation:** who may prove (the applier, or a different person) and whether return to service is witnessed. **Impairment:** maximum duration, compensatory measures and notifications. None has a default: a system type with no rule cannot have an isolation or impairment authorised. Published by an appointee holding `control_rule.publish` across the venue. | See 6b-1. |
+| Isolations (Q142–Q148) | Requested by the supervisor of each linked permit, or an administrator of the performing organisation. The lifecycle is below. Each step is a recorded decision with its own event (certificate, locks, lock box, instrument, method, evidence, witness). Removal is refused while any permit the isolation protects is live, or any personal lock is on. | Steps and authorities are listed in the lifecycle table that follows. |
+| Personal locks (Q145, Q146) | Recorded by the holder, or by the supervisor of a linked permit for someone counted on that permit's team, on a proved isolation only. A lock is taken off by the same people. For an absent holder, the isolation authority removes it, with a reason and a confirmation that the holder is not in the area. Each lock is set once and taken off once. | |
+| Impairments (Q135–Q141) | Requested and authorised like isolations; authorising records the rule and its maximum. Impairing is refused until every compensatory measure in the rule is recorded in place with a named person, and every notification in the rule is recorded as given (who, how, when, not in the future). The reinstatement test needs a witness who is not the tester; a failed test is recorded and the system stays impaired. Restored only after a passed test. Past its maximum it is **overdue** (computed): nothing is restored or approved, issue, acceptance and re-acceptance are refused, and the controls desk shows it. Only a fresh authorisation with a longer maximum and a reason lets it continue. | Notifications are recorded, not sent (P6-13). |
+| Fire watch (Q130, Q134) | Arranged for a permit whose class needs one, with a named watcher, one open watch per phase. The watch during the work starts when the permit is active. The watch after the work cannot end before its minimum, from its actual start. Checks and the final check are recorded with findings. | Recorded by the supervisor on the watcher's word. See 6b-2. Closure waiting for the watch after the work is 6c. |
+| Exclusion zones | Set up and removed by the supervisor; removal is refused while the work is issued or active. | |
+| Custody (Q118, Q160) | A venue register (tenant administrator), and each issue against a current permit to a named holder, and return, by a `custody.issue` / `custody.return` appointee. An item is out to one holder at a time (also a unique index). | Blocking closure while items are out is 6c. |
+| Readiness wiring | `core.control_blockers` is used by issue (replacing P5-11), by acceptance (refused if a control lapsed after issue), and by re-acceptance (through the live checks). The issue snapshot records the controls relied on. | |
+| Control failure (design §8.5) | Reported by someone on the team of a protected permit, or a venue authority for the system, for an isolation or impairment in place. Every live job relying on it is suspended: the protected permits are held by the failure (`control_failure`), and the rest of each job by a stop lifted with it. A failed proved isolation goes back to applied and must be proved again. Lifted only by a `control.lift_failure` appointee for the system who is not connected with the jobs, and only once the control is back in place; the lift's conditions are acknowledged at re-acceptance. | See 6b-3. |
+| Reads | `api.permit_detail` adds `controls`: what the class needs, what blocks now, and each isolation (with locks and steps), impairment (with its due time and overdue state), fire watch, zone and custody item. `api.controls_desk()` lists live isolations and impairments for those holding control actions at the venue. Read views for every table. Venue administrators and appointees, and anyone who can see a protected permit, can read them; another tenant cannot. | |
+
+Isolation lifecycle:
+
+| Step | Who |
+|---|---|
+| Authorise or refuse | An isolation authority for the system. Never whoever asked, or anyone connected with the jobs, even if they hold the appointment. |
+| Apply | An authorised person. |
+| Prove | An authorised person: a different person from the one who applied it, where the rule says so. A test that does not confirm dead or zero energy does not prove it. |
+| Remove | The isolation authority. |
+| Return to service | The isolation authority, witnessed where the rule says so. |
+| Withdraw | The isolation authority, before the isolation is applied. |
+
+Found and fixed while testing: impairing a system was accepted with a notification missing or dated in the future whenever every compensatory measure was recorded. Two lists were being joined, and an empty one made the whole result empty.
+
+### Decisions raised by the 6b build
+
+| # | Question | Recommendation |
+|---|---|---|
+| 6b-1 | Should isolation and impairment rules be published in one step by an appointed technical authority? The alternative is the two-step draft-and-approve used for class configurations. | **Yes, for the pilot.** Each version has an owner, an effective date and its source, and only an appointee can publish. If the technical authority wants a second person, the class configuration's two-step route can be reused. |
+| 6b-2 | Should fire watch starts, checks and the final check be recorded by the supervisor, naming the watcher, rather than signed by the watcher? | **Yes, for now.** Watchers are often venue staff or operatives without an account. Revisit when the gate and mobile work gives operatives a simple sign-in (phase 7). |
+| 6b-3 | Should control failure apply only to isolations and impairments? A failed fire watch or a breached exclusion zone would then be an ordinary stop that the issuer lifts. | **Yes.** Those controls belong to one permit and its issuer; system controls belong to the system's authority, which is who must restore them. |
+| 6b-4 | Should isolations and impairments be asked for only against permits? Venue-originated isolations (no permit) would come with emergency work and continuing isolations (6c). | **Yes.** It keeps every 6b control tied to the work it protects. |

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ActionForm } from "@/components/ActionForm";
-import type { ClassConfig, RouteStep } from "@/lib/permits";
+import { type ClassConfig, CONTROL_KIND, type RouteStep } from "@/lib/permits";
 import { slug } from "@/lib/screening/content";
 import { saveClassSettings } from "./actions";
 
@@ -19,6 +19,8 @@ export function ConfigForm({ versionId, config, newKey, systemTypes, courses, co
   const [group, setGroup] = useState(1);
   const [when, setWhen] = useState("");
   const e = config.evidence;
+  const pc = config.physical_controls;
+  const fw = pc?.find((c) => c.kind === "fire_watch") as { during_work: boolean; post_work_minutes: number } | undefined;
   return (
     <ActionForm action={saveClassSettings} what="Saving this configuration" submitLabel="Save configuration">
       <input type="hidden" name="key" value={newKey} />
@@ -76,9 +78,23 @@ export function ConfigForm({ versionId, config, newKey, systemTypes, courses, co
         {competencies.map((c) => <label className="inline" key={c.id}><input type="checkbox" name="team_competency_type_ids" value={c.id} defaultChecked={e?.team_competency_type_ids.includes(c.id)} /> Everyone: {c.label}</label>)}
         {competencies.map((c) => <label className="inline" key={`s${c.id}`}><input type="checkbox" name="supervisor_competency_type_ids" value={c.id} defaultChecked={e?.supervisor_competency_type_ids.includes(c.id)} /> Supervisor: {c.label}</label>)}
       </fieldset>
-      <label>Needs physical controls (isolation, impairment or fire watch)
-        <select name="requires_physical_controls" defaultValue={choice(config.requires_physical_controls)}><option value="">— Choose —</option><option value="yes">Yes: cannot be issued until live controls exist</option><option value="no">No</option></select>
-      </label>
+      <fieldset className="stack"><legend>Physical controls (P6-8)</legend>
+        <p className="m-0 muted">A permit of this class is issued, accepted and restarted only with these in place. There is no default.</p>
+        <label>Does this class need physical controls?
+          <select name="controls_choice" defaultValue={pc === undefined ? "" : pc.length === 0 ? "none" : "some"}>
+            <option value="">— Choose —</option><option value="none">None</option><option value="some">Yes: the ones ticked below</option>
+          </select>
+        </label>
+        {(["isolation", "impairment", "exclusion_zone", "fire_watch"] as const).map((k) => (
+          <label className="inline" key={k}><input type="checkbox" name="control_kind" value={k} defaultChecked={pc?.some((c) => c.kind === k)} /> {CONTROL_KIND[k]}</label>
+        ))}
+        <div className="row">
+          <label>Fire watch during the work
+            <select name="fire_watch_during" defaultValue={fw ? (fw.during_work ? "yes" : "no") : ""}><option value="">— Choose —</option><option value="yes">Yes</option><option value="no">No</option></select>
+          </label>
+          <label>Fire watch after the work (minutes, Q130)<input name="fire_watch_minutes" type="number" min={0} step={1} defaultValue={fw?.post_work_minutes ?? ""} /></label>
+        </div>
+      </fieldset>
       <fieldset className="stack"><legend>While the permit is live</legend>
         <p className="m-0 muted">None of these has a default. Leave a field blank until the venue has decided it.</p>
         <div className="row">

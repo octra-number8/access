@@ -25,7 +25,7 @@ create function tests.class_config(p_route jsonb, p_questions jsonb default '[]'
   select jsonb_build_object('questions', p_questions, 'route', p_route,
     'submission_declaration', jsonb_build_array('The information in this request is accurate.', 'We will report any change before it happens.'),
     'acceptance_declaration', jsonb_build_array('I have briefed the team on the scope, limits and conditions.'),
-    'requires_physical_controls', false, 'override_prohibited', false,
+    'physical_controls', '[]'::jsonb, 'override_prohibited', false,
     -- Test values only: zero notice is chosen explicitly (P5-8), never defaulted.
     'notice', jsonb_build_object('amount', 0, 'unit', 'working_days', 'cutoff_applies', false, 'restart_on_resubmission', false),
     'evidence', jsonb_build_object('induction_course_ids', '[]'::jsonb, 'team_competency_type_ids', '[]'::jsonb,

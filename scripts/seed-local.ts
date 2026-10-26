@@ -134,11 +134,11 @@ await must(await signIn(ianLogin), "acknowledge_appointment", { p_idempotency_ke
 await must(a1, "publish_venue_calendar", { p_idempotency_key: key(), p_venue_id: v.venueId, p_working_weekdays: [1, 2, 3, 4, 5],
   p_closures: [], p_cutoff_time: "16:00", p_effective_from: new Date(Date.now() - 86_400_000).toISOString(),
   p_change_reason: "Demo calendar for local testing" });
-const demoConfig = (route: unknown[], notice: number, controls: boolean, questions: unknown[] = []) => ({
+const demoConfig = (route: unknown[], notice: number, controls: unknown[], questions: unknown[] = []) => ({
   questions, route,
   submission_declaration: ["The information in this request is accurate and complete.", "We will tell the venue before anything in it changes."],
   acceptance_declaration: ["I have briefed the team on the scope, limits and conditions of this permit.", "I will stop the work if conditions change."],
-  requires_physical_controls: controls, override_prohibited: false,
+  physical_controls: controls, override_prohibited: false,
   notice: { amount: notice, unit: "working_days", cutoff_applies: true, restart_on_resubmission: false },
   evidence: { induction_course_ids: [], team_competency_type_ids: [], supervisor_competency_type_ids: [] },
   // Demo live rules only: the venue must choose its own (P6-5 to P6-7).
@@ -157,14 +157,15 @@ await must(a1, "propose_screening_version", { p_idempotency_key: key(), p_versio
 await must(tara2, "decide_screening_version", { p_idempotency_key: key(), p_version_id: screening.id,
   p_expected_version: await version("screening_set_version", screening.id), p_decision: "approve", p_reason: "Demo approval for local testing" });
 const configs: Array<[string, unknown]> = [
-  ["WA", demoConfig([{ key: "venue-review", name: "Venue review of the job", kind: "review", group: 1 }], 0, false)],
+  ["WA", demoConfig([{ key: "venue-review", name: "Venue review of the job", kind: "review", group: 1 }], 0, [])],
   ["WAH", demoConfig([{ key: "method", name: "Method and access review", kind: "review", group: 1 },
-                      { key: "final", name: "Final review", kind: "review", group: 2 }], 1, false,
+                      { key: "final", name: "Final review", kind: "review", group: 2 }], 1, [],
                      [{ key: "access", text: "How will people reach the work?", type: "choose_one",
                         options: [{ key: "mewp", text: "Mobile elevating work platform" }, { key: "tower", text: "Mobile tower" }] }])],
-  ["HW", demoConfig([{ key: "hot-review", name: "Hot works review", kind: "review", group: 1 }], 2, true)],
-  ["ISO", demoConfig([{ key: "iso-review", name: "Isolation review", kind: "review", group: 1 }], 2, true)],
-  ["LSI", demoConfig([{ key: "lsi-review", name: "Impairment review", kind: "review", group: 1 }], 2, true)],
+  ["HW", demoConfig([{ key: "hot-review", name: "Hot works review", kind: "review", group: 1 }], 2,
+                    [{ kind: "fire_watch", during_work: true, post_work_minutes: 60 }])],
+  ["ISO", demoConfig([{ key: "iso-review", name: "Isolation review", kind: "review", group: 1 }], 2, [{ kind: "isolation" }])],
+  ["LSI", demoConfig([{ key: "lsi-review", name: "Impairment review", kind: "review", group: 1 }], 2, [{ kind: "impairment" }])],
 ];
 for (const [code, content] of configs) {
   const draftVersion = await must(a1, "create_class_draft", { p_idempotency_key: key(), p_permit_class_id: classByCode[code] });

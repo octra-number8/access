@@ -111,6 +111,8 @@ const isVersion = await must(a1, "propose_appointment_type_version", {
     // Phase 6 live control and hand-back.
     "permit.stop_as_authority", "permit.lift_suspension", "permit.extend", "permit.approve_worker",
     "permit.exclude_worker_as_authority", "permit.change_supervisor", "permit.stop_area", "permit.lift_area_stop",
+    // Phase 7d: work exceptions found when a gate reconnects.
+    "gate.reconcile_work",
     "permit.hand_back_accept", "permit.close_out_for_issuer", "permit.cancel_issued", "permit.flag_abandoned"],
   p_eligible_permit_class_ids: classIds, p_eligible_system_type_ids: [], p_grantable_type_ids: [],
   p_is_root_eligible: true, p_requires_competence_evidence: false, p_owner_person_id: a1p!.person_id,
@@ -198,9 +200,9 @@ const controlTypes: Array<[string, string, string[], string, string, Array<Recor
    "alan+demo@venue.local", "Alan", [{ system_type_id: hvType.id }, { system_type_id: faType.id }]],
   // Phase 7: the gate. One appointment each, so neither has a capacity to choose at the gate.
   ["AA", "Access Authority", ["gate.operate", "gate.override", "access.approve", "access.cancel_as_authority", "entry_rule_version.approve",
-    "entry_rule_version.reject", "venue_config.approve", "venue_config.reject", "pass.revoke"],
+    "entry_rule_version.reject", "venue_config.approve", "venue_config.reject", "pass.revoke", "gate.download_manifest", "gate.reconcile"],
    "ava+demo@venue.local", "Ava", [{ area_id: root!.id }]],
-  ["GO", "Gate Operator", ["gate.operate"], "gil+demo@venue.local", "Gil", [{ area_id: root!.id }]],
+  ["GO", "Gate Operator", ["gate.operate", "gate.download_manifest", "gate.submit_fallback"], "gil+demo@venue.local", "Gil", [{ area_id: root!.id }]],
 ];
 const controlLogins: Record<string, Awaited<ReturnType<typeof makeUser>>> = {};
 for (const [code, name, actions, email, given, scopes] of controlTypes) {

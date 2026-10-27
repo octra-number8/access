@@ -55,3 +55,54 @@ export async function overrideEntry(_: ActionResult, f: FormData): Promise<Actio
   revalidatePath("/gate");
   return r;
 }
+
+// ---- Offline (Q198–Q203, phase 7d) -------------------------------------------------------------
+export interface ManifestEntry {
+  person_id: string; name: string; organisation: string | null; pass_numbers: string[]; outcome: EntryResult["outcome"];
+  audience: string | null; areas: string[]; escort: string; reasons: Array<{ words: string; owner: string }>; notices: string[];
+}
+export interface Manifest {
+  manifest_id: string; made_at: string; max_age_minutes: number; gate_point: string; venue: string; timezone: string;
+  instruction: string; steps: string[]; entries: ManifestEntry[];
+}
+export interface FallbackEntry {
+  client_entry_id: string; recorded_at: string; person_id?: string; pass_number?: string; name_given: string; organisation_given?: string;
+  purpose: string; contacted: string; direction: "in" | "out"; identity_method: string; decision: string; notes?: string;
+}
+export type Uploaded = { ok: true; added: number; already_uploaded: number; exceptions: Array<{ code: string; words: string; owner: string }> } | Denial;
+
+/** A read-only snapshot for look-up during an outage. Never current authorisation (invariant 11). */
+export async function downloadManifest(gatePointId: string, key: string): Promise<({ ok: true } & Manifest) | Denial> {
+  const db = await supabaseServer();
+  try {
+    const r = await write(db, "download_manifest", { p_idempotency_key: key, p_gate_point_id: gatePointId });
+    return r as unknown as ({ ok: true } & Manifest) | Denial;
+  } catch (e) {
+    return failure(e) as Denial;
+  }
+}
+
+export async function uploadFallback(gatePointId: string, manifestId: string | null, entries: FallbackEntry[], key: string): Promise<Uploaded> {
+  const db = await supabaseServer();
+  try {
+    const r = await write(db, "submit_fallback_entries", { p_idempotency_key: key, p_gate_point_id: gatePointId, p_manifest_id: manifestId, p_entries: entries });
+    if (!r.ok) {
+      const problems = (r as unknown as { problems?: string[] }).problems;
+      return { ...(r as Denial), reason: problems?.length ? `${r.reason} ${problems.join(" ")}` : r.reason };
+    }
+    revalidatePath("/gate/reconcile");
+    return r as unknown as Uploaded;
+  } catch (e) {
+    return failure(e) as Denial;
+  }
+}
+
+/** Whether Octra can be reached now. */
+export async function ping(): Promise<boolean> {
+  return true;
+}
+
+export async function resolveException(_: ActionResult, f: FormData): Promise<ActionResult> {
+  return run("resolve_reconciliation_exception", { p_idempotency_key: text(f, "key"), p_exception_id: text(f, "id"), p_note: text(f, "note") },
+    "Resolved, with your note");
+}

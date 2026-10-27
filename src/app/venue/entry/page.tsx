@@ -2,14 +2,14 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/ActionForm";
-import { EntryRulesView, PurposesView } from "@/components/gate/config-view";
+import { EntryRulesView, OutageView, PurposesView } from "@/components/gate/config-view";
 import { OVERRIDABLE_WORDS, type Purpose } from "@/lib/gate";
 import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 import { venueAreas } from "../../jobs/data";
 import {
-  createGatePoint, type EntryRules, proposeEntryRules, proposePurposes, removeAudience, removePurpose, saveNeverOverridable, startEntryDraft,
-  startPurposesDraft,
+  createGatePoint, type EntryRules, type OutageProcedure, proposeEntryRules, proposePurposes, removeAudience, removePurpose, saveNeverOverridable,
+  saveOutage, startEntryDraft, startOutageDraft, startPurposesDraft,
 } from "./actions";
 import { AudienceForm, PurposeForm } from "./forms";
 
@@ -27,6 +27,8 @@ export default async function EntrySetup() {
   const { data: venues } = await db.from("venue").select("id, name, timezone").in("customer_id", session.tenantAdminCustomerIds).order("name");
   const venue = (venues ?? [])[0];
   if (!venue) return <p>No venue yet.</p>;
+  const { data: outageVersions } = await db.from("venue_config_version").select("id, version_no, status, content, row_version").eq("venue_id", venue.id)
+    .eq("kind", "outage_procedure").in("status", ["draft", "proposed", "approved"]).order("version_no", { ascending: false });
   const [{ data: rules }, { data: purposeVersions }, { data: points }, { data: capacities }, { data: courses }, areas] = await Promise.all([
     db.from("entry_rule_version").select("id, version_no, status, content, row_version, decision_reason").eq("venue_id", venue.id)
       .in("status", ["draft", "proposed", "approved"]).order("version_no", { ascending: false }),
@@ -45,6 +47,8 @@ export default async function EntrySetup() {
   const ruleCurrent = (rules ?? []).find((r) => r.status !== "approved");
   const purApproved = (purposeVersions ?? []).find((r) => r.status === "approved");
   const purCurrent = (purposeVersions ?? []).find((r) => r.status !== "approved");
+  const outApproved = (outageVersions ?? []).find((r) => r.status === "approved");
+  const outCurrent = (outageVersions ?? []).find((r) => r.status !== "approved");
   const k = () => randomUUID();
 
   return (
@@ -152,6 +156,42 @@ export default async function EntrySetup() {
           <PurposesView purposes={(purCurrent.content as { purposes: Purpose[] }).purposes} names={names} /></div>
       ) : (
         <ActionForm action={startPurposesDraft} what="Starting a draft" submitLabel={purApproved ? "Start a new version from this one" : "Start the first version"}>
+          <input type="hidden" name="key" value={k()} />
+          <input type="hidden" name="venue_id" value={venue.id} />
+        </ActionForm>
+      )}
+
+      <h2>Outage procedure</h2>
+      <p className="muted">What gate staff do when Octra cannot be reached (Q199, Q201), and how long a downloaded manifest may be used for look-up (Q198). There is no default: until it is approved, gate devices cannot keep a manifest and an outage means the manual procedure only.</p>
+      {outApproved ? (
+        <details className="panel" open={!outCurrent}><summary><strong>Version {outApproved.version_no} in use</strong></summary>
+          <OutageView content={outApproved.content as OutageProcedure} />
+        </details>
+      ) : <p className="notice notice-blocked">No outage procedure is approved.</p>}
+      {outCurrent?.status === "draft" ? (
+        <div className="panel stack" style={{ maxWidth: "none" }}>
+          <h3>Draft version {outCurrent.version_no}</h3>
+          <ActionForm key={`${outCurrent.id}:${outCurrent.row_version}`} action={saveOutage} what="Saving the outage procedure" submitLabel="Save">
+            <input type="hidden" name="key" value={k()} />
+            <input type="hidden" name="version_id" value={outCurrent.id} />
+            <label>Instruction shown on the offline banner
+              <textarea name="instruction" rows={2} defaultValue={(outCurrent.content as OutageProcedure).instruction ?? ""}
+                placeholder="e.g. The control room leads. Admit only after the supervisor or access authority confirms." /></label>
+            <label>Steps, one per line
+              <textarea name="steps" rows={5} defaultValue={(outCurrent.content as OutageProcedure).steps.join("\n")} /></label>
+            <label>How long a manifest may be used, in minutes (1 to 1440)
+              <input name="max_age" type="number" min={1} max={1440} step={1} defaultValue={(outCurrent.content as OutageProcedure).manifest_max_age_minutes ?? ""} /></label>
+          </ActionForm>
+          <ActionForm action={proposePurposes} what="Proposing the outage procedure" submitLabel="Propose to the access authority">
+            <input type="hidden" name="key" value={k()} />
+            <input type="hidden" name="version_id" value={outCurrent.id} />
+            <input type="hidden" name="row_version" value={outCurrent.row_version} />
+          </ActionForm>
+        </div>
+      ) : outCurrent?.status === "proposed" ? (
+        <div className="panel"><h3>Version {outCurrent.version_no}: {STATE.proposed}</h3><OutageView content={outCurrent.content as OutageProcedure} /></div>
+      ) : (
+        <ActionForm action={startOutageDraft} what="Starting a draft" submitLabel={outApproved ? "Start a new version from this one" : "Start the first version"}>
           <input type="hidden" name="key" value={k()} />
           <input type="hidden" name="venue_id" value={venue.id} />
         </ActionForm>

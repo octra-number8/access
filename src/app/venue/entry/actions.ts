@@ -16,7 +16,7 @@ export interface Audience {
   induction_course_ids: string[]; escort: "never" | "always"; area_ids: string[];
 }
 export interface EntryRules { audiences: Audience[]; never_overridable?: string[] }
-type Kind = "entry" | "purposes";
+type Kind = "entry" | "venue_config";
 
 const invalid = (reason: string): ActionResult => ({ ok: false, code: "invalid_content", reason, missing: "A valid change", resolvable_by: "You" });
 
@@ -110,7 +110,7 @@ export async function savePurpose(_: ActionResult, f: FormData): Promise<ActionR
   if (typeof ind === "string") return invalid(ind);
   const consent = text(f, "occupier_consent");
   if (!consent) return invalid("Choose whether the occupier of an area must consent.");
-  return save<{ purposes: Purpose[] }>("purposes", text(f, "version_id"), text(f, "key"), (c) => {
+  return save<{ purposes: Purpose[] }>("venue_config", text(f, "version_id"), text(f, "key"), (c) => {
     const existing = text(f, "purpose_key");
     const purposes = c.purposes ?? [];
     const purpose: Purpose = {
@@ -122,7 +122,7 @@ export async function savePurpose(_: ActionResult, f: FormData): Promise<ActionR
 }
 
 export async function removePurpose(_: ActionResult, f: FormData): Promise<ActionResult> {
-  return save<{ purposes: Purpose[] }>("purposes", text(f, "version_id"), text(f, "key"),
+  return save<{ purposes: Purpose[] }>("venue_config", text(f, "version_id"), text(f, "key"),
     (c) => ({ ...c, purposes: (c.purposes ?? []).filter((p) => p.key !== text(f, "purpose_key")) }), "Purpose removed");
 }
 
@@ -166,4 +166,29 @@ export async function issueCard(_: IssuedCard, f: FormData): Promise<IssuedCard>
 export async function revokePass(_: ActionResult, f: FormData): Promise<ActionResult> {
   return run("revoke_pass", { p_idempotency_key: text(f, "key"), p_pass_id: text(f, "pass_id"), p_reason: text(f, "reason") },
     "Pass revoked. It is refused at every gate from now on");
+}
+
+// ---- Outage procedure (Q198, Q199, Q201, P7-10) ------------------------------------------------------
+export interface OutageProcedure { instruction?: string; steps: string[]; manifest_max_age_minutes?: number }
+
+export async function startOutageDraft(_: ActionResult, f: FormData): Promise<ActionResult> {
+  return run("create_venue_config_draft", { p_idempotency_key: text(f, "key"), p_venue_id: text(f, "venue_id"), p_kind: "outage_procedure" },
+    "Draft started");
+}
+
+export async function saveOutage(_: ActionResult, f: FormData): Promise<ActionResult> {
+  const age = text(f, "max_age");
+  if (age !== "" && !/^\d+$/.test(age)) return invalid("The manifest's maximum age is a whole number of minutes.");
+  return save<OutageProcedure>("venue_config", text(f, "version_id"), text(f, "key"), (c) => {
+    const next: OutageProcedure = { ...c, instruction: text(f, "instruction"), steps: text(f, "steps").split("\n").map((s) => s.trim()).filter(Boolean) };
+    if (age === "") delete next.manifest_max_age_minutes; else next.manifest_max_age_minutes = Number(age);
+    return next;
+  }, "Outage procedure saved");
+}
+
+export async function decideOutage(_: ActionResult, f: FormData): Promise<ActionResult> {
+  const approve = text(f, "decision") === "approve";
+  return run("decide_venue_config", { p_idempotency_key: text(f, "key"), p_version_id: text(f, "version_id"),
+    p_expected_version: Number(text(f, "row_version")), p_decision: approve ? "approve" : "reject", p_reason: text(f, "reason") },
+    approve ? "Outage procedure approved; gate devices can now keep a manifest" : "Outage procedure rejected");
 }

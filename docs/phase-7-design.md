@@ -410,3 +410,51 @@ The camera scanner was not exercised: the browser pane has no camera. Its decodi
 | 7c-1 | A QR encoder was written here (byte mode, level M, versions 1–10, about 200 lines, unit-tested and decoded by the browser's reader) rather than adding a library. Keep it? | **Yes.** It avoids a dependency for a small, fixed job. Replace it with a maintained library if passes ever need more. |
 | 7c-2 | An operator or authority with two appointments that both cover a gate's area would be asked to choose a capacity, and the gate screens (like every screen so far) cannot pass one. Add capacity choice now? | **Not for the pilot:** give each gate person one covering appointment (the seed does). Add a capacity chooser to the shared form when any role needs two appointments. |
 | 7c-3 | Should a phone show its pass while the venue's gate is offline? | **Covered by 7d.** The phone hides a code it cannot refresh. The gate's offline mode is next. |
+
+---
+
+## 18. As built (phase 7d, 27 October 2026)
+
+Implemented in `supabase/migrations/20261025000050` (catalogue, outage procedure, manifests, fallback entries, exceptions) and `…51` (API). Proved by pgTAP `37_offline_gate` (51 assertions; 1,315 in the whole suite, through both test runners). Mutation testing caught all twenty deliberate weakenings, five only after tests were added. Also walked through in the browser. Four new actions: `gate.download_manifest`, `gate.submit_fallback`, `gate.reconcile` and `gate.reconcile_work`, bringing the catalogue to 269.
+
+| Area | As built | Note |
+|---|---|---|
+| Outage procedure (Q198, Q199, Q201, P7-10) | A venue configuration document of kind `outage_procedure`: the instruction for the offline banner, the steps, and how long a manifest may be used (1–1440 minutes). None of these has a default: proposing without the age is refused with "there is no default". Approved by an appointee, never the author. Edited on the entry set-up page; approved on the decisions page. | Until it is approved, no manifest can be downloaded: an outage means the manual procedure only. |
+| Manifest (Q198) | Downloaded per gate point by a `gate.download_manifest` appointee. It covers everyone with an active engagement now, a visit approved for the next day, or a live pass. For each, it holds the live evaluation at that moment (outcome, reasons and owners, areas, escort, notices), their pass numbers, and the work flags. It never contains a pass code, token or secret. Each manifest is recorded with who made it and when. | The device keeps it in browser storage. Downloads are manual: "Download" or "Refresh the manifest" on the gate page (7d-3). |
+| Offline mode (Q199, Q200) | The gate switches to offline mode when a scan cannot reach Octra, or when the browser reports it is offline. **Pinned at the top:** "OFFLINE — status last updated [date, time]". **Below:** what cannot be checked, the venue's instruction and steps, the manifest's age and when it stops being usable, and "Try to reconnect". **Look-up** by name or pass number shows "What the manifest said at [time]. Not a current answer", worded as what was recorded then, never "Admit". Past the manifest's age, or with no manifest: "use the manual procedure only", and look-up is hidden. **Manual entry:** name as given, organisation, pass number, purpose, who was contacted and what they said, direction, identity check, what was decided, notes. Entries are kept on the device. | Issue, acceptance, approvals and eligibility changes are never available offline: the offline screen offers none of them. |
+| Upload and reconciliation (Q202, Q203) | On reconnection, entries are uploaded by a `gate.submit_fallback` appointee, with the device's time and the manifest relied on. The upload is all or nothing: entries in the future, earlier than their manifest, missing a purpose, a contact or a name, or letting someone through without an identity check are refused with their entry numbers, and the device keeps them. Each entry records whether its manifest was within age. Uploading the same entries again adds nothing. Each admission is checked against the live record when uploaded. **Entry exceptions:** no matching person; a revoked pass; the live record says Check or Do not admit (with its reasons and owner). **Work exceptions:** a permit stopped, or the person removed from its team, since the manifest was made (or at all, with no manifest), owned by the permit's issuer. A refusal or referral raises nothing. | Checked against the record at upload, not reconstructed at the moment of entry: anything that changed between the entry and the upload is raised too (7d-1). |
+| Resolution (Q202, invariant 10) | **Entry exceptions:** resolved by a `gate.reconcile` appointee for the gate's area. **Work exceptions:** resolved by a `gate.reconcile_work` appointee for the permit's class and area. Never by the operator who made the entry, nor the person concerned; never by a tenant or platform administrator. A note is required; an exception is resolved once and never closes by time. Others, including contractors at the same venue, are told the exception was not found, so its existence is not disclosed. Reconciliation page: `/gate/reconcile`. | Octra notifies nobody; the page says the suspension's owner must also use the venue's direct route (Q203). |
+
+**Proved in the browser:**
+- **Outage procedure:** admin1 drafts it. Proposing without the manifest age is refused ("there is no default"). Ava approves.
+- **Manifest:** Gil downloads it. It holds Cara as admit, with her pass number and no codes.
+- **Going offline:**
+  - With the dev server stopped, a scan switched the gate to offline mode, with the banner, instruction, steps and age.
+  - The rest of the outage was continued through the browser's offline event: the dev server reloads the page once its connection drops (see below).
+  - Look-up found Cara and prefilled the form. "Let through" with "not checked" was refused on the device, with the input kept.
+  - Two entries were recorded: Cara, and an unknown visitor.
+- **Reconnection:** two entries uploaded, one exception (no matching person, owned by the access administrator).
+- **Resolution:** Gil, the operator, was refused (separation of duties). Ava resolved it with a note.
+- **Phone width:** the pinned bar stays in view without covering the form.
+
+**Fixed during the build:**
+- The first offline banner was pinned in full and covered the look-up: now only the headline is pinned.
+- The manual form did not prefill from a look-up: it now remounts on choosing a person.
+- The look-up said "Recorded then: Admit": now neutral wording.
+- After upload, the result was hidden by the panel closing: it now stays open.
+- Wording ("1 needs", "Photo ID").
+
+**Not covered:**
+- **Reloading offline:** the gate page is not available offline. If a device reloads during an outage, the page will not load (no service worker). Entries already recorded stay in the device's storage and upload when the page next loads online (7d-2).
+- **Suspension after sync in the browser:** pgTAP proves it end to end through the API (the walk-through had no live permit).
+- **Scenario 6 over HTTP:** not automated in the end-to-end suite yet; pgTAP and the walk-through cover it.
+- **A device clock set in the future:** its entries are refused on upload until corrected, and the screen shows which entry. There is no way to correct an entry on the device.
+
+### Decisions raised by the 7d build
+
+| # | Question | Recommendation |
+|---|---|---|
+| 7d-1 | Reconciliation compares each admission with the live record at upload, not as it stood at the moment of entry. Anything that changed in between is raised too. Accept? | **Yes.** It errs towards raising, which is the safe side. Reconstructing the record at a past moment would need history for every rule, and would hide a problem that is live now. |
+| 7d-2 | Should the gate page work after a reload during an outage? This needs a small service worker that caches the gate page. | **Yes, before the pilot.** Today the page must stay open through an outage. Until then, the outage procedure should include a paper log. |
+| 7d-3 | Manifests are downloaded by hand. Should a gate device refresh its manifest automatically while online, for example every quarter of its permitted age? | **Yes, with the venue's agreement.** Each manifest is a personal-data record (retention in phase 8), so the frequency belongs in the outage procedure. Until then, refresh at the start of each shift. |
+| 7d-4 | Work exceptions are resolved by a separate `gate.reconcile_work` action on the issuer's appointment type, scoped to the permit's class and area, rather than by "the issuer" as a person. Accept? | **Yes.** Authority comes from an appointment (invariant 1); the seed adds it to the permit issuer type. |

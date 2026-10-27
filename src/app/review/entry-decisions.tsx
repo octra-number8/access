@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { ActionForm } from "@/components/ActionForm";
-import { EntryRulesView, PurposesView } from "@/components/gate/config-view";
+import { EntryRulesView, OutageView, PurposesView } from "@/components/gate/config-view";
 import { type Purpose, visitState } from "@/lib/gate";
 import { venueTime } from "@/lib/permits";
 import { supabaseServer } from "@/lib/supabase/server";
-import { decideEntryRules, decidePurposes, type EntryRules } from "../venue/entry/actions";
+import { decideEntryRules, decideOutage, decidePurposes, type EntryRules, type OutageProcedure } from "../venue/entry/actions";
 
 // The access authority's queue (P7-2, Q121, Q123): entry rules and visit purposes to approve,
 // and visits waiting for a decision. Whether someone may decide is settled by the database.
@@ -13,7 +13,7 @@ export async function EntryDecisions() {
   const db = await supabaseServer();
   const [{ data: rules }, { data: purposes }, { data: visits }, { data: capacities }, { data: courses }, { data: areas }, { data: venues }] = await Promise.all([
     db.from("entry_rule_version").select("id, venue_id, version_no, content, row_version").eq("status", "proposed"),
-    db.from("venue_config_version").select("id, venue_id, version_no, content, row_version").eq("status", "proposed").eq("kind", "access_purposes"),
+    db.from("venue_config_version").select("id, venue_id, kind, version_no, content, row_version").eq("status", "proposed"),
     db.from("access_authorisation").select("id, reference, venue_id, description, starts_at, ends_at, status").eq("status", "requested").order("starts_at"),
     db.from("engagement_capacity").select("code, label"),
     db.from("induction_course").select("id, title"),
@@ -54,11 +54,19 @@ export async function EntryDecisions() {
         </div>
       ))}
       <h2>Visit purposes to approve</h2>
-      {(purposes ?? []).length === 0 ? <p>None.</p> : (purposes ?? []).map((r) => (
+      {(purposes ?? []).filter((r) => r.kind === "access_purposes").length === 0 ? <p>None.</p> : (purposes ?? []).filter((r) => r.kind === "access_purposes").map((r) => (
         <div className="panel" key={r.id}>
           <p><strong>{venue.get(r.venue_id)?.name}</strong> — visit purposes version {r.version_no}</p>
           <PurposesView purposes={(r.content as { purposes: Purpose[] }).purposes} names={names} />
           {decide(decidePurposes, r, "these purposes")}
+        </div>
+      ))}
+      <h2>Outage procedures to approve</h2>
+      {(purposes ?? []).filter((r) => r.kind === "outage_procedure").length === 0 ? <p>None.</p> : (purposes ?? []).filter((r) => r.kind === "outage_procedure").map((r) => (
+        <div className="panel" key={r.id}>
+          <p><strong>{venue.get(r.venue_id)?.name}</strong> — outage procedure version {r.version_no}</p>
+          <OutageView content={r.content as OutageProcedure} />
+          {decide(decideOutage, r, "this outage procedure")}
         </div>
       ))}
       <h2>Visits waiting for a decision</h2>

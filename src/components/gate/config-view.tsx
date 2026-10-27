@@ -41,3 +41,14 @@ export function PurposesView({ purposes, names }: { purposes: Purpose[]; names: 
     ))}</ul>
   );
 }
+
+export function OutageView({ content }: { content: { instruction?: string; steps: string[]; manifest_max_age_minutes?: number } }) {
+  return (
+    <>
+      <p><strong>{content.instruction || "No instruction yet."}</strong></p>
+      {content.steps.length ? <ol style={{ paddingLeft: "1.5rem", listStyle: "decimal" }}>{content.steps.map((s, i) => <li key={i}>{s}</li>)}</ol> : <p>No steps yet.</p>}
+      <p>{content.manifest_max_age_minutes ? `A manifest may be used for look-up for ${content.manifest_max_age_minutes} minutes after it is made.`
+        : "Not yet set: how long a manifest may be used."}</p>
+    </>
+  );
+}

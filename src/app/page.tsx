@@ -47,7 +47,7 @@ export default async function Home() {
         {session.appointmentVenueIds.length > 0 || session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/controls">Controls desk</Link></li> : null}
         {session.appointmentVenueIds.length > 0 || session.tenantAdminCustomerIds.length > 0 || session.organisationAdmin.length > 0 ? <li><Link href="/emergency">Emergency work</Link></li> : null}
         {session.appointmentVenueIds.length > 0 ? <li><Link href="/facilitate">Record a facilitated induction</Link></li> : null}
-        {session.appointmentVenueIds.length > 0 ? <li><Link href="/gate">Gate</Link> · <Link href="/gate/overrides">Gate overrides</Link></li> : null}
+        {session.appointmentVenueIds.length > 0 ? <li><Link href="/gate">Gate</Link> · <Link href="/gate/overrides">Gate overrides</Link> · <Link href="/gate/reconcile">Reconciliation</Link></li> : null}
         {session.personIds.length > 0 || session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/visits">Visits</Link></li> : null}
         {session.personIds.length > 0 ? <li><Link href="/pass">My pass</Link></li> : null}
         {isOps ? <li><Link href="/operations">Platform operations</Link></li> : null}

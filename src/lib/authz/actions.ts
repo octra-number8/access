@@ -267,6 +267,10 @@ export const AUTHORITY_ACTIONS = [
   "access.cancel_for_venue",
   "access.cancel_as_authority",
   "access.link_work_request",
+  "gate.download_manifest",
+  "gate.submit_fallback",
+  "gate.reconcile",
+  "gate.reconcile_work",
 ] as const;
 
 export type AuthorityAction = (typeof AUTHORITY_ACTIONS)[number];

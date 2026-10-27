@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { ActionForm } from "@/components/ActionForm";
 import { Blocked } from "@/components/Blocked";
 import { EntryResultView } from "@/components/gate/entry-result";
-import { recordGateAction, scanPass, type ScanOutcome } from "./actions";
+import { ping, recordGateAction, scanPass, type ScanOutcome } from "./actions";
+import { ManifestPanel, OfflineDesk, useGateStore } from "./offline";
 
 // The browser's built-in barcode reader (P7-11). Not in every browser: the pass number is the
 // fallback, and a handheld scanner that types the code into the box works too.
@@ -21,12 +22,28 @@ export function GateDesk({ gatePointId, gateName, tz }: { gatePointId: string; g
   const [direction, setDirection] = useState<"in" | "out">("in");
   const [now, setNow] = useState(() => Date.now());
   const [formKey, setFormKey] = useState(() => crypto.randomUUID());
+  const [offline, setOffline] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const store = useGateStore(gatePointId);
   const video = useRef<HTMLVideoElement>(null);
   const field = useRef<HTMLInputElement>(null);
   const stream = useRef<MediaStream | null>(null);
 
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => () => stopCamera(), []);
+  useEffect(() => {
+    const down = () => setOffline(true);
+    window.addEventListener("offline", down);
+    if (!navigator.onLine) setOffline(true);
+    return () => window.removeEventListener("offline", down);
+  }, []);
+
+  useEffect(() => { if (offline) stopCamera(); }, [offline]);
+
+  async function retry() {
+    setRetrying(true);
+    try { if (await ping()) setOffline(false); } catch { /* still offline */ } finally { setRetrying(false); }
+  }
 
   function stopCamera() {
     stream.current?.getTracks().forEach((t) => t.stop());
@@ -43,8 +60,8 @@ export function GateDesk({ gatePointId, gateName, tz }: { gatePointId: string; g
     try {
       setScan(await scanPass(gatePointId, value, crypto.randomUUID()));
     } catch {
-      setScan({ ok: false, code: "offline", reason: "Octra could not be reached, so nothing was checked.", missing: "A connection",
-        resolvable_by: "The operator: follow the venue's manual entry procedure" });
+      // Octra cannot be reached: nothing was checked. Switch to the offline procedure.
+      setOffline(true);
     } finally {
       setInput("");
       setBusy(false);
@@ -84,8 +101,13 @@ export function GateDesk({ gatePointId, gateName, tz }: { gatePointId: string; g
   const age = ok ? now - new Date(ok.evaluatedAt).getTime() : 0;
   const stale = age > STALE_MS;
 
+  if (offline) {
+    return <OfflineDesk tz={tz} store={store} onRetry={retry} retrying={retrying} />;
+  }
+
   return (
     <div className="stack" style={{ maxWidth: "40rem" }}>
+      <ManifestPanel gatePointId={gatePointId} tz={tz} store={store} />
       <form className="stack" onSubmit={(e) => { e.preventDefault(); check(input); }}>
         <label>Scan or type the pass number
           <input ref={field} value={input} onChange={(e) => setInput(e.target.value)} autoFocus autoComplete="off" spellCheck={false}

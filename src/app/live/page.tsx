@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/ActionForm";
-import { PERMIT_STATE, type PermitSummary, STOP_CATEGORY, SUSPENSION_KIND, timeLeft, venueTime } from "@/lib/permits";
+import { permitNeeds as needs } from "@/lib/dashboard";
+import { PERMIT_STATE, type PermitSummary, STOP_CATEGORY, timeLeft, venueTime } from "@/lib/permits";
 import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 import { liftAreaStop, stopArea } from "../controls/actions";
@@ -14,21 +15,6 @@ type Board = {
   area_stops: Array<{ id: string; area: string; category: string; reason: string; by: string; at: string; venue_timezone: string }>;
   emergencies_overdue: Array<{ id: string; reference: string; deadline_at: string; organisation: string }>;
 };
-
-/** What each permit needs next, and who owns it: actions, owners and deadlines, not counts (CLAUDE.md §6). */
-function needs(p: PermitSummary): Array<{ what: string; who: string }> {
-  const out: Array<{ what: string; who: string }> = [];
-  if (p.status === "hand_back_pending") out.push({ what: p.duties ? `Handed back; ${p.duties} duty(ies) still outstanding` : "Handed back; ready to accept", who: "A hand-back acceptor" });
-  if (p.status === "expired") out.push({ what: `Expired with ${p.duties} duty(ies) outstanding: close it out`, who: "Its supervisor or an issuer" });
-  for (const h of p.holding) out.push({ what: `${SUSPENSION_KIND[h.kind] ?? h.kind}: ${h.reason}`, who: h.who });
-  if (p.status === "suspended" && p.holding.length === 0) out.push({ what: "Every stop lifted: waiting for re-acceptance", who: "Its supervisor" });
-  if (p.status === "issued_awaiting_acceptance") out.push({ what: "Waiting for acceptance at the workface", who: "Its supervisor" });
-  if (p.extension_pending) out.push({ what: "An extension is waiting to be acknowledged", who: "Its supervisor" });
-  if (p.revalidation_overdue) out.push({ what: "Revalidation overdue: work must not continue until confirmed", who: "Its supervisor" });
-  if (p.area_return_pending) out.push({ what: "Areas handed back, waiting for a decision", who: "A hand-back acceptor" });
-  if (p.abandoned) out.push({ what: "Flagged abandoned: still to be closed out", who: "An issuer" });
-  return out;
-}
 
 export default async function LiveBoard() {
   const session = await getSession();

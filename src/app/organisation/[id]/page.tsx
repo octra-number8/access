@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/ActionForm";
 import { EvidenceList, type EvidenceLine } from "@/components/Blocked";
+import { OrganisationDashboard } from "@/components/organisation-dashboard";
 import { date, RELATIONSHIP_KIND, RELATIONSHIP_STATE, verificationText, type Verification } from "@/lib/labels";
 import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -80,6 +81,7 @@ export default async function Organisation({ params }: { params: Promise<{ id: s
   return (
     <>
       <h1>{org.legal_name}</h1>
+      {myAdminRole ? <OrganisationDashboard organisationId={id} /> : null}
 
       <h2>Engagements</h2>
       {(engagements.data ?? []).map((e, n) => (

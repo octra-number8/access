@@ -125,5 +125,13 @@ body {
   .facts { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; margin: .75rem 0; }
   .facts dt { font-weight: 600; color: var(--octra-ink-900); }
   .facts dd { margin: 0; }
+  /* Action lists on a phone: each row becomes a block, each cell labelled by its column. */
+  @media (max-width: 640px) {
+    table.stacked thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    table.stacked, table.stacked tbody, table.stacked tr, table.stacked td { display: block; width: 100%; }
+    table.stacked tr { border-bottom: 1px solid var(--octra-border); padding: .375rem 0; }
+    table.stacked td { border: 0; padding: .125rem .625rem; }
+    table.stacked td[data-label]::before { content: attr(data-label) ": "; font-weight: 600; color: var(--octra-ink-500); font-size: .875rem; }
+  }
   @media print { header, .no-print { display: none !important; } body { background: #fff; } }
 }

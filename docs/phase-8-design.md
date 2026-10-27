@@ -402,7 +402,7 @@ Still open from earlier phases, and not blocking phase 8:
 - Claims compared against the transaction's frozen time instead of the clock.
 
 **Not covered:**
-- **Information requested:** the RFI notice is wired but not exercised by a test.
+- **Information requested:** the RFI notice is wired but not exercised by a test. *(Covered in 8b: test 39 checks the job's contact is told once.)*
 - **Overdue fire watch:** the source is not exercised in the database tests (the impairment is).
 - **Digest emails:** the claim is exercised; no browser check of a digest email.
 - **Recipients without an account:** they have no email address, so they receive inbox notices only, which they cannot read. This is visible as `no_address` on the delivery.
@@ -414,3 +414,65 @@ Still open from earlier phases, and not blocking phase 8:
 | 8a-1 | "Fire watch overdue" is defined as arranged but not started once its permit is suspended, in hand-back or expired. Is that the right trigger, or does the venue want a time after work stops? | **Accept for now, validate with the venue.** A time after work stops would be venue configuration with no default. |
 | 8a-2 | People without an Octra account (6b-2) cannot receive notices. Should critical notices about them go to their organisation's administrators instead? | **Yes, in 8b**, alongside the contractor dashboard. Today their supervisors already receive the critical notices about the work. |
 | 8a-3 | Invitation reminders go to the invitation's owner, not the invitee, because the invitee's link cannot be re-sent without issuing a new one. Accept? | **Yes.** The owner can resend the invitation through the existing route, which issues a fresh link. |
+
+---
+
+## 14. As built (phase 8b, 27 October 2026)
+
+**Implementation.**
+- **Migrations:** `supabase/migrations/20261025000054` (the two dashboards) and `…55` (reports). Reads only: no new tables or actions.
+- **Screens:**
+  - `/dashboard`: the venue's five groups.
+  - The contractor's five groups at the top of the organisation page, for its administrators.
+  - `/reports`, with a CSV download at `/reports/csv`.
+  - Links from the home page.
+- **Shared code:** `src/lib/dashboard.ts` (types, wording, CSV writer) and `src/components/dash-list.tsx`. The live board's "what each permit needs" now comes from the same helper.
+
+**Proof.**
+- **pgTAP:** `39_dashboards_reports` (74 assertions); 1,457 in the whole suite, through both test runners.
+- **Mutation testing:** 27 of 27 deliberate weakenings caught, three only after tests were strengthened (occupier wording, the exact issuer named, the report period).
+- **Unit:** CSV quoting and formula-injection guard, and scope parsing.
+
+| Area | As built | Note |
+|---|---|---|
+| Who sees what | **Venue dashboard:** the venue's side only (`authz.venue_side`: its tenant administrators and anyone holding an appointment there). **Contractor dashboard:** the organisation's own administrators only, not the venue's administrators. **Not visible:** platform administrators, other customers and other organisations see neither; an unknown venue looks the same as one you cannot see. | |
+| Venue dashboard (Q204, P8-7) | **The period:** today and tomorrow, in venue time. **The groups:** (1) work approved, issued or live in that period, by location and event phase, with visits listed separately as entry only; (2) decisions due (open steps with the people whose appointment covers them, by name), information requests, permits ready to issue or what is missing before issue, acceptances due, screening decisions and visit requests, each with the work's start time; (3) stopped work, area stops, unresolved control failures, impairments and fire watches; (4) hand-backs due with their outstanding duties, continuing controls with their owner and review date, open outage exceptions, and emergency work without its retrospective permit; (5) restrictions and expiries that affect this work or these visits. **Rules for every line:** it says what is needed, who owns it, and when. "Nobody currently holds an appointment for this" is shown rather than hidden. Overdue lines say so in words. There are no counts, scores or colours. | "Today and tomorrow" is a screen period, not venue configuration. |
+| Expiries against real work (Q208) | Group 5 runs the issue checks themselves (organisation and team) for each permit in the period: engagement, organisation evidence, each team member's restriction, induction and competency, all against that permit's dates. Visits check the organisation and each roster member for restriction. A restriction is shown as a fact; its grounds never are. | An expiry that does not affect planned work is not shown, as Q208 asks. |
+| Contractor dashboard (Q205) | (1) jobs and visits due next, each permit's state, and what an approved permit still needs before issue; (2) information requests with exactly what was asked, and documents returned; (3) workers on planned work who are missing an induction or competency, are restricted, or are not named; (4) venue decisions it is waiting for, owned by a role ("the venue's reviewer", "the affected occupier", "the venue's access authority"), never a person; (5) live permits, stopped work and hand-backs due. **P5-6:** the occupier and the venue's appointees are never named here. | Recorded decisions keep their decider's name in reports, as the permit page already shows them to the applicant. |
+| Reports (Q209, Q96, P8-15) | **One read:** `api.report(kind, venue, from, to, organisation)`. **The six:** approval lead times, returns and information requests, late requests and emergency work (by organisation, work type and stated cause, with outcome), hand-backs (waiting time and duties still outstanding), gate activity (by gate and day), and visit attendance (including who did not attend). **Format:** the columns are defined once, in the database, and the screen and the CSV show the same rows. Times are in venue time, over whole venue days, up to 366 days. **Visibility:** the venue's side sees all rows; an organisation's administrator sees only its own rows, and never gate activity. **The CSV:** a CSV cell that a spreadsheet would treat as a formula is prefixed so it cannot run. | Lead time is measured from the request's submission, not from when a later sequential step opened. |
+
+**Proved in the browser and on the local stack** (two of Cara's jobs, made through the API):
+- **The venue dashboard:**
+  - Today's work grouped by hall.
+  - The stop shown with who can lift it.
+  - The unanswered information request, owned by Cara.
+  - The Work Approval missing its child permit before issue.
+  - The 8a outage exception.
+- **The late-requests report:** showed Ian's allowed late notice. The CSV download matched it row for row, with a `text/csv` attachment.
+- **Signed out:** the CSV route answered 401 and the dashboard redirected to sign-in.
+- **Cara's own view:**
+  - Her jobs and what each permit needs.
+  - The information request with its two questions.
+  - Her live and stopped permits.
+  - No venue appointee named.
+  - Her reports offered only her organisation's rows, without gate activity.
+  - `/dashboard` told her it is for the venue's side.
+- **At phone width:** the action lists stack into labelled rows, with no sideways scrolling.
+
+**Fixed during the build:**
+- Two loops passed an untyped row where a permit or visit was expected; both failed at run time. Test 39 found the first, and the second was fixed with it.
+- The contractor's approved Work Approval said "waiting to be issued" when it was blocked by its child permit. It now lists what is missing.
+- Dashboard tables were cramped on a phone; they now stack.
+
+**Not covered:**
+- **Gate activity:** the report's rows are not exercised with gate events in test 39 (only that it is offered to the venue's side and refused to an organisation).
+- **The work table's event phase:** the fixture's jobs have no event.
+- **Closure attempts refused:** "Live controls unresolved at closure attempts" (§5) is reported as hand-backs with their waiting time and the duties still outstanding. A refused hand-back acceptance is not recorded (readiness refusals are returned, not stored), so attempts themselves cannot be counted. See 8b-2.
+
+### Decisions raised by the 8b build
+
+| # | Question | Recommendation |
+|---|---|---|
+| 8b-1 | The venue dashboard looks at today and tomorrow (venue time). Is a two-day window right for the pilot, or should the venue choose it? | **Keep two days for the pilot.** If venues want another span, make it venue configuration with no default, like the other periods. |
+| 8b-2 | §5 asks for "live controls unresolved at closure attempts". Refused attempts are not stored today, so the report shows hand-backs, how long each waited and what is still outstanding. Should refused hand-back acceptances be recorded so attempts can be reported? | **Not now.** The hand-back report shows the same operational fact (what blocked closure, for how long). Recording refusals would add a new kind of record; revisit after the pilot if the venue asks. |
+| 8b-3 | The contractor dashboard names no venue person for decisions it is waiting on, but reports and the permit page name whoever *recorded* a decision. Is that the right line? | **Yes.** Who decided is part of the record the applicant already sees; who *could* decide is the venue's internal arrangement. |

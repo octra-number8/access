@@ -244,7 +244,8 @@ await must(a1, "register_custody_item", { p_idempotency_key: key(), p_venue_id: 
 const runner = await makeUser("jobs+demo@octra.local");
 const sqlJobs = postgres(DB_URL, { max: 1 });
 await sqlJobs`insert into core.service_account (auth_user_id, purpose) values
-  (${runner.userId}, 'job_runner'), (${runner.userId}, 'permit_expiry'), (${runner.userId}, 'notification_sender')`;
+  (${runner.userId}, 'job_runner'), (${runner.userId}, 'permit_expiry'), (${runner.userId}, 'notification_sender'),
+  (${runner.userId}, 'pack_builder')`;
 await sqlJobs.end();
 const envPath = new URL("../.env.local", import.meta.url);
 const kept = readFileSync(envPath, "utf8").split("\n").filter((l) => l && !/^(JOB_RUNNER_EMAIL|JOB_RUNNER_PASSWORD|CRON_SECRET)=/.test(l));

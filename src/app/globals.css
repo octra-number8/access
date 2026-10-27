@@ -89,7 +89,6 @@ body {
   main a:not(.button) { color: var(--octra-ink-900); font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
   .stack { display: grid; gap: .875rem; max-width: 36rem; }
   .stack label { display: grid; gap: .25rem; font-weight: 600; color: var(--octra-ink-900); }
-  .stack label.inline, label.inline { display: flex; gap: .5rem; align-items: flex-start; font-weight: 400; color: var(--octra-ink-700); }
   .stack input:not([type=checkbox]):not([type=radio]), .stack select, .stack textarea {
     min-height: 3rem; padding: .5rem .75rem; font: inherit; font-weight: 400;
     border: 1px solid var(--octra-border-strong); border-radius: .375rem; background: var(--octra-surface); color: var(--octra-ink-700);
@@ -125,6 +124,9 @@ body {
   .facts { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; margin: .75rem 0; }
   .facts dt { font-weight: 600; color: var(--octra-ink-900); }
   .facts dd { margin: 0; }
+  .history { list-style: none; padding: 0; margin: .5rem 0 0; }
+  .history li { padding: .5rem 0; border-bottom: 1px solid var(--octra-border); }
+  .hash { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .75rem; overflow-wrap: anywhere; }
   /* Action lists on a phone: each row becomes a block, each cell labelled by its column. */
   @media (max-width: 640px) {
     table.stacked thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -135,3 +137,8 @@ body {
   }
   @media print { header, .no-print { display: none !important; } body { background: #fff; } }
 }
+
+/* Outside the layers on purpose: Tailwind's own `inline` utility (display: inline) sits in a later
+   layer and would otherwise turn every choice label back into running text. */
+.stack label.inline, label.inline { display: flex; gap: .5rem; align-items: flex-start; font-weight: 400; color: var(--octra-ink-700); }
+.choice-row { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; }

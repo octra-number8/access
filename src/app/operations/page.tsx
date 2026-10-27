@@ -25,7 +25,7 @@ export default async function Operations() {
     db.from("notification_delivery").select("id, channel, attempts, last_error, created_at").eq("delivery_state", "failed").order("created_at", { ascending: false }).limit(50),
   ]);
   // Each scheduled job runs every minute (P8-6): warn when one has not succeeded for five.
-  const jobs = ["expiry", "notifications", "email"].map((job) => {
+  const jobs = ["expiry", "notifications", "email", "packs"].map((job) => {
     const mine = (runs ?? []).filter((r) => r.job === job);
     const lastOk = mine.find((r) => r.outcome === "ok");
     return { job, last: mine[0], lastOk, stale: !lastOk || Date.now() - new Date(lastOk.finished_at!).getTime() > 5 * 60_000 };

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/ActionForm";
 import { Blocked, type Denial } from "@/components/Blocked";
+import { HistoryPanel } from "@/components/history-panel";
 import { day, HOLD_STATE, isoDay, isoLastDay, JOB_STATE, type JobDetail, lastDay, nextAction, RECOMMENDATION_STATE, requiredClasses, ROLE } from "@/lib/jobs";
 import { PERMIT_STATE } from "@/lib/permits";
 import { startPermits } from "../../permits/actions";
@@ -213,6 +214,8 @@ export default async function Job({ params }: { params: Promise<{ id: string }> 
           </ActionForm>
         </details>
       ) : null}
+
+      <HistoryPanel kind="job" id={j.id} />
     </>
   );
 }

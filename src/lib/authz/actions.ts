@@ -276,6 +276,9 @@ export const AUTHORITY_ACTIONS = [
   "notification.claim_delivery",
   "notification.record_delivery",
   "job.run",
+  "evidence.export",
+  "record.correct",
+  "evidence.build_pack",
 ] as const;
 
 export type AuthorityAction = (typeof AUTHORITY_ACTIONS)[number];

@@ -3,6 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/ActionForm";
 import { Blocked, type Denial } from "@/components/Blocked";
+import { HistoryPanel } from "@/components/history-panel";
+import { PermitEvidence } from "@/components/permit-evidence";
 import { OUTCOME, PERMIT_STATE, type PermitDetail, STEP_KIND, toVenueLocal, venueTime } from "@/lib/permits";
 import { answersOf } from "@/lib/screening/content";
 import { getSession } from "@/lib/session";
@@ -66,6 +68,10 @@ export default async function Permit({ params }: { params: Promise<{ id: string 
               documents={[...latestDocs.values()]} chosenDocuments={p.draft.document_version_ids} tz={tz} />
           </section>
         ) : null}
+        <div className="mx-auto max-w-3xl">
+          <PermitEvidence permitId={p.id} tz={tz} />
+          <HistoryPanel kind="permit" id={p.id} />
+        </div>
       </>
     );
   }
@@ -275,6 +281,9 @@ export default async function Permit({ params }: { params: Promise<{ id: string 
           </ActionForm>
         </details>
       ) : null}
+
+      <PermitEvidence permitId={p.id} tz={tz} />
+      <HistoryPanel kind="permit" id={p.id} />
     </>
   );
 }

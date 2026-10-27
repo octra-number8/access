@@ -17,3 +17,10 @@ export function inductionMediaBucket() {
     auth: { persistSession: false, autoRefreshToken: false },
   }).storage.from("induction-media");
 }
+
+/** Built permit packs: written by the pack builder, released only after api.pack_access. */
+export function packsBucket() {
+  return createClient(publicEnv.supabaseUrl, serverEnv().serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  }).storage.from("evidence-packs");
+}

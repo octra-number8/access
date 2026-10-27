@@ -35,3 +35,14 @@ export function verificationText(v: Verification | undefined): string {
 }
 
 export const date = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString("en-GB") : "—");
+
+/** A recorded code ("late_notice", "in_person") in words, for records shown generically. */
+export function humanCode(v: string): string {
+  return /^[a-z]+(_[a-z]+)+$/.test(v) ? v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, " ") : v;
+}
+
+/** A recorded state of any record, in words with a capital ("pending" → "Pending"). */
+export function stateWords(v: string, known: Record<string, string> = {}): string {
+  const w = known[v] ?? humanCode(v);
+  return w.charAt(0).toUpperCase() + w.slice(1);
+}

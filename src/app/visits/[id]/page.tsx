@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { ActionForm } from "@/components/ActionForm";
 import { type Purpose, visitState } from "@/lib/gate";
 import { venueTime } from "@/lib/permits";
+import { HistoryPanel } from "@/components/history-panel";
 import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 import { organisationPeople } from "../../jobs/data";
@@ -205,6 +206,7 @@ export default async function VisitPage({ params, searchParams }: { params: Prom
           </ActionForm>
         </>
       ) : null}
+      <HistoryPanel kind="visit" id={v.id} />
     </>
   );
 }

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { HistoryPanel } from "@/components/history-panel";
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/ActionForm";
 import { EvidenceList, type EvidenceLine } from "@/components/Blocked";
@@ -331,6 +332,7 @@ export default async function Organisation({ params }: { params: Promise<{ id: s
           ))}
         </>
       ) : null}
+      <HistoryPanel kind="organisation" id={id} />
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/ActionForm";
+import { HistoryPanel } from "@/components/history-panel";
 import { date, RELATIONSHIP_KIND, RELATIONSHIP_STATE, verificationText, type Verification } from "@/lib/labels";
 import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -97,6 +98,7 @@ export default async function Me() {
           </ActionForm>
         </>
       ) : null}
+      {session.personIds.map((pid) => <HistoryPanel key={pid} kind="person" id={pid} />)}
     </>
   );
 }

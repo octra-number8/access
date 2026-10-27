@@ -2,12 +2,14 @@ import "server-only";
 
 // The scheduled job runner (P8-6, D-021). It signs in as the job runner service account, never
 // with the service role key, and each database function checks that account's purpose: expiry,
-// the notification jobs, and email delivery. Every run is logged; a failed step is logged and
-// the others still run. Nothing here decides anything (invariant 10).
+// the notification jobs, email delivery, and building requested permit packs (8c). Every run is
+// logged; a failed step is logged and the others still run. Nothing here decides anything
+// (invariant 10).
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { publicEnv, serverEnv } from "./env";
 import { sendMail } from "./mail";
+import { buildPacks } from "./packs";
 
 interface Email { delivery_ids: string[]; to: string | null; subject: string; body: string; link: string | null }
 
@@ -65,6 +67,17 @@ export async function runJobs(): Promise<Record<string, unknown>> {
   // The notification jobs log their own run.
   await step("notifications", async () => (await rpc(db, "run_notification_jobs")) as Record<string, unknown>, false);
   await step("email", async () => ({ ...(await deliver(db, "claim_email_batch")), digests: await deliver(db, "claim_digest_batch") }), true);
+  await step("packs", async () => await buildPacks(db), true);
   await db.auth.signOut();
   return out;
+}
+
+/** Builds requested packs straight away, so the person who asked need not wait for the next tick. */
+export async function buildPacksNow(): Promise<{ built: number; failed: number }> {
+  const db = await runnerClient();
+  try {
+    return await buildPacks(db);
+  } finally {
+    await db.auth.signOut();
+  }
 }

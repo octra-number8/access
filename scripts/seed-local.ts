@@ -196,6 +196,11 @@ const controlTypes: Array<[string, string, string[], string, string, Array<Recor
    "iris+demo@venue.local", "Iris", [{ system_type_id: hvType.id }, { system_type_id: faType.id }, { area_id: root!.id }]],
   ["AP", "Authorised Person", ["isolation.apply", "isolation.prove", "impairment.impair", "impairment.test", "impairment.restore"],
    "alan+demo@venue.local", "Alan", [{ system_type_id: hvType.id }, { system_type_id: faType.id }]],
+  // Phase 7: the gate. One appointment each, so neither has a capacity to choose at the gate.
+  ["AA", "Access Authority", ["gate.operate", "gate.override", "access.approve", "access.cancel_as_authority", "entry_rule_version.approve",
+    "entry_rule_version.reject", "venue_config.approve", "venue_config.reject", "pass.revoke"],
+   "ava+demo@venue.local", "Ava", [{ area_id: root!.id }]],
+  ["GO", "Gate Operator", ["gate.operate"], "gil+demo@venue.local", "Gil", [{ area_id: root!.id }]],
 ];
 const controlLogins: Record<string, Awaited<ReturnType<typeof makeUser>>> = {};
 for (const [code, name, actions, email, given, scopes] of controlTypes) {
@@ -247,5 +252,7 @@ console.log(JSON.stringify({
   permit_issuer: "ian+demo@venue.local",
   controls_authority: "iris+demo@venue.local",
   authorised_person: "alan+demo@venue.local",
+  access_authority: "ava+demo@venue.local",
+  gate_operator: "gil+demo@venue.local",
   scanner_env: ".env.scanner.local",
 }, null, 2));

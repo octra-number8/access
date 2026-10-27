@@ -357,3 +357,56 @@ Implemented in `supabase/migrations/20261025000047` (catalogue, tables, consent)
 |---|---|---|
 | 7b-1 | Attendance is recorded from gate scans only. Should an escort also be able to record arrivals inside the venue, for visits that do not pass a scanning gate? | **Not for the pilot.** Every visit should enter through a gate point. Revisit if the venue has unscanned entrances for visitors. |
 | 7b-2 | Can an occupier's representative see the visit they consent to only through their appointment (as a venue appointee), never as their organisation? | **Yes.** The occupier's organisation does not see other organisations' visits (privacy, G11). Its appointed representative sees what they decide. |
+
+---
+
+## 17. As built (phase 7c, 27 October 2026)
+
+The screens for 7a and 7b, plus two read functions in `supabase/migrations/20261025000049`. Proved by pgTAP `36_gate_screens` (11 assertions; 1,264 in the whole suite, through both test runners). Mutation testing caught all five deliberate weakenings, one only after a test was added. Also proved by a browser walk-through on the local stack, as the venue administrator, the access authority (Ava) and the contractor (Cara), described below. The seed adds an access authority (Ava) and a gate operator (Gil). It approves no entry rules or purposes: those were created through the screens.
+
+| Screen | As built | Note |
+|---|---|---|
+| Gate (`/gate`) | Phone-first. Choose the gate point (skipped when there is one). Type the pass number, or let a handheld scanner type the code; the camera uses the browser's built-in barcode reader where available. The result shows: the outcome in large words, then name and organisation, "permission to be here, not permission to work", the reasons with who can resolve each, why they are here, the areas, the escort, inductions in words, visit conditions, overrides in force and permit notices. Where an access authority could set a reason aside, they are named, with "Octra has not told them". The operator records direction, how identity was checked (never the document's details) and what they did, within 5 minutes. After that, the result is hidden and the operator must scan again. On a Do not admit coming in, the "let them in" option is not offered; the database refuses it anyway. | Colour is a side edge that repeats the words. "Check with [owner]" names who to check with. The operator's own checks, such as an unverified code, say only "Check". |
+| Overrides (`/gate/overrides`) | Today's results at the venue's gates not yet let through or refused, with only the reasons that can be set aside offered as choices. Required: purpose, reason, and an end in the venue's time zone (defaults to the end of today; never open-ended). Optional: an escort. Overrides in force are listed with who granted them. | |
+| My pass (`/pass`) | Create a phone pass, then a QR code fetched fresh every 30 seconds. If it cannot refresh, the code is hidden after a minute, and the page gives the pass number and asks for photo ID instead. Also the person's own entry result now, from the same evaluation the gate runs, recording nothing. | |
+| Card passes (`/venue/passes`) | Issue a printed card. The code is shown once, on a card-sized print layout, and is not kept. Revoke any pass with a reason; revoked passes are listed. | |
+| Entry set-up (`/venue/entry`) | The entry rules and visit purposes are drafted, proposed, and shown read-only once proposed or approved, like a permit class configuration. For each audience or purpose: "no inductions" and "no escort" must be chosen explicitly, never inferred from empty boxes. Which refusals can never be overridden must be saved before proposing. Gate points are added here too. | |
+| Decisions (`/review`) | Entry rules and purposes to approve or reject, and visits waiting for a decision. | |
+| Visits (`/visits`, `/visits/new`, `/visits/[id]`) | Asking for a visit: purpose, with what it allows and prohibits; areas; times in the venue's zone; and a roster from the organisation's people. The visit page shows: occupier consent per area, the decision with conditions, roster changes and approving additions, arrivals and departures, work raised, and withdraw or cancel. | The occupier's name is shown to the venue's side only (P5-6), via `api.access_consents_needed`. |
+| Job from a visit (`/jobs/new?visit=`) | Prefilled with the visit's engagement, areas, dates and description. On saving, the job is linked to the visit. If linking fails, the user is taken to the visit with a notice that the job exists but is not linked. | The visit is unchanged and no permit is created (Q122). |
+
+**Proved in the browser:**
+- **Entry rules:**
+  - Proposing without choosing the never-overridable refusals is refused, with the reason.
+  - The author cannot approve their own rules (separation of duties, shown with why, what is missing and who can resolve it).
+  - Ava approves.
+- **The card:** the printed QR decodes, through the browser's barcode reader, to the exact code.
+- **The gate, before rules:** the card gives "Check with the venue's access authority".
+  - Recording "let in" on a Check with no note is refused.
+  - A referral is recorded.
+- **Override:** Ava sets the reason aside until 23:59. A rescan by typed number (lower case) gives Admit, showing the override.
+- **The gate, after approval:** Admit on the engagement, here as Contractors, may enter Hall 1. Also checked at phone width.
+- **Phone pass:** the QR decodes, and the code changes after 30 seconds. An expired code at the gate gives Check: "The pass code did not verify".
+- **Visit:**
+  - Cara's first request is refused because it starts before her engagement. Corrected and resubmitted, it is created as AV-000001.
+  - Ava's approval without an escort is refused (always escorted). With the escort named and no photography, it is approved.
+- **Job from the visit:** prefilled, saved as WP-00001 (a draft needing screening), and linked to the visit.
+- **Console:** no errors in the browser console.
+
+**Fixed in this build:** every `ActionForm` cleared what had been typed when an action was refused. React clears a form passed to `action` whatever the result. The form now submits by hand, and clears only on success. This applies across the application.
+
+**Not covered in the browser (proved in pgTAP):**
+- Occupier consent: the seed has no occupier representative.
+- A visit as the reason for entry: Cara's engagement is the better basis.
+- Roster additions after approval.
+- Attendance against a visit.
+
+The camera scanner was not exercised: the browser pane has no camera. Its decoding of these codes was proved on the rendered images.
+
+### Decisions raised by the 7c build
+
+| # | Question | Recommendation |
+|---|---|---|
+| 7c-1 | A QR encoder was written here (byte mode, level M, versions 1–10, about 200 lines, unit-tested and decoded by the browser's reader) rather than adding a library. Keep it? | **Yes.** It avoids a dependency for a small, fixed job. Replace it with a maintained library if passes ever need more. |
+| 7c-2 | An operator or authority with two appointments that both cover a gate's area would be asked to choose a capacity, and the gate screens (like every screen so far) cannot pass one. Add capacity choice now? | **Not for the pilot:** give each gate person one covering appointment (the seed does). Add a capacity chooser to the shared form when any role needs two appointments. |
+| 7c-3 | Should a phone show its pass while the venue's gate is offline? | **Covered by 7d.** The phone hides a code it cannot refresh. The gate's offline mode is next. |

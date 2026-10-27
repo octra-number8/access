@@ -49,6 +49,13 @@ export async function createJob(_: ActionResult, f: FormData): Promise<ActionRes
     return failure(e);
   }
   revalidatePath("/", "layout");
+  const visitId = text(f, "visit_id");
+  if (visitId) {
+    // The job exists either way; if linking fails, say so on the visit rather than hide it.
+    const linked = await write(db, "link_work_request", { p_idempotency_key: `${text(f, "key")}:link`, p_authorisation_id: visitId, p_work_package_id: id })
+      .then((l) => l.ok, () => false);
+    if (!linked) redirect(`/visits/${visitId}?link_failed=${id}`);
+  }
   redirect(`/jobs/${id}`);
 }
 

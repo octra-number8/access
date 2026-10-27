@@ -122,4 +122,8 @@ body {
   main th { font-size: .875rem; color: var(--octra-ink-500); font-weight: 600; }
   .tag { display: inline-block; margin-left: .5rem; font-size: .75rem; font-weight: 600; background: var(--octra-warning-subtle); color: var(--octra-ink-900); padding: 0 .375rem; border-radius: .25rem; }
   .table-wrap { overflow-x: auto; }
+  .facts { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; margin: .75rem 0; }
+  .facts dt { font-weight: 600; color: var(--octra-ink-900); }
+  .facts dd { margin: 0; }
+  @media print { header, .no-print { display: none !important; } body { background: #fff; } }
 }

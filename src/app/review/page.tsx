@@ -7,6 +7,7 @@ import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 import { date, verificationText } from "@/lib/labels";
 import { approveEngagementAction, reviewDocumentAction } from "../actions";
+import { EntryDecisions } from "./entry-decisions";
 import { PermitDecisions } from "./permit-decisions";
 import { ScreeningDecisions } from "./screening-decisions";
 import { decideTypeVersion, imposeRestriction, liftRestriction, verifyCompetency } from "../admin-actions";
@@ -65,6 +66,8 @@ export default async function Review() {
       )}
 
       <PermitDecisions />
+
+      <EntryDecisions />
 
       <ScreeningDecisions />
 

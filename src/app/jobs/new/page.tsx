@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/ActionForm";
+import { toVenueLocal } from "@/lib/permits";
 import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 import { createJob } from "../actions";
@@ -11,7 +12,7 @@ import { JobFields } from "../job-fields";
 export const metadata = { title: "Start a job" };
 
 // Q48-Q50: one journey for every kind of job, within an approved engagement.
-export default async function NewJob({ searchParams }: { searchParams: Promise<{ engagement?: string }> }) {
+export default async function NewJob({ searchParams }: { searchParams: Promise<{ engagement?: string; visit?: string }> }) {
   const session = await getSession();
   if (!session) redirect("/sign-in?next=/jobs/new");
   const db = await supabaseServer();
@@ -20,7 +21,7 @@ export default async function NewJob({ searchParams }: { searchParams: Promise<{
   if (session.tenantAdminCustomerIds.length === 0) q = q.in("organisation_id", adminOrgs);
   const { data: engagements } = await q;
   const [{ data: venues }, { data: orgs }] = await Promise.all([
-    db.from("venue").select("id, name").in("id", (engagements ?? []).map((e) => e.venue_id)),
+    db.from("venue").select("id, name, timezone").in("id", (engagements ?? []).map((e) => e.venue_id)),
     db.from("organisation").select("id, legal_name").in("id", (engagements ?? []).map((e) => e.organisation_id)),
   ]);
   const venueName = new Map((venues ?? []).map((v) => [v.id, v.name]));
@@ -42,7 +43,13 @@ export default async function NewJob({ searchParams }: { searchParams: Promise<{
     );
   }
   const params = await searchParams;
-  const chosen = (engagements ?? []).find((e) => e.id === params.engagement) ?? ((engagements ?? []).length === 1 ? engagements![0] : null);
+  // Started from an approved visit (Q122): carries only the verified organisation, places and
+  // dates. The visit itself never becomes a permit.
+  const { data: visit } = params.visit
+    ? await db.from("access_authorisation").select("id, reference, engagement_id, area_ids, starts_at, ends_at, description, status")
+        .eq("id", params.visit).eq("status", "approved").maybeSingle()
+    : { data: null };
+  const chosen = (engagements ?? []).find((e) => e.id === (visit?.engagement_id ?? params.engagement)) ?? ((engagements ?? []).length === 1 ? engagements![0] : null);
   if (!chosen) {
     return (
       <>
@@ -58,6 +65,7 @@ export default async function NewJob({ searchParams }: { searchParams: Promise<{
     venueAreas(db, chosen.venue_id),
     organisationPeople(db, chosen.organisation_id),
   ]);
+  const venueTz = (venues ?? []).find((v) => v.id === chosen.venue_id)?.timezone ?? "Europe/London";
   const me = people.find((p) => session.personIds.includes(p.id))?.id ?? people[0]?.id;
 
   return (
@@ -65,6 +73,7 @@ export default async function NewJob({ searchParams }: { searchParams: Promise<{
       <p><Link href="/jobs">All jobs</Link></p>
       <h1>Start a job</h1>
       <p>{label(chosen)}</p>
+      {visit ? <p className="notice">From visit <Link href={`/visits/${visit.id}`}>{visit.reference}</Link>: the places and dates are filled in from it. Change them as the work needs; the job is screened like any other.</p> : null}
       {(workTypes ?? []).length === 0 ? (
         <p className="notice notice-blocked">This venue has not set up any work types yet. Its administrator adds them on the screening set-up page.</p>
       ) : (
@@ -72,12 +81,16 @@ export default async function NewJob({ searchParams }: { searchParams: Promise<{
           <input type="hidden" name="key" value={randomUUID()} />
           <input type="hidden" name="venue_id" value={chosen.venue_id} />
           <input type="hidden" name="engagement_id" value={chosen.id} />
+          {visit ? <input type="hidden" name="visit_id" value={visit.id} /> : null}
           <fieldset className="stack"><legend>What kind of job</legend>
             {(workTypes ?? []).map((w, i) => (
               <label className="inline" key={w.id}><input type="radio" name="work_type_id" value={w.id} required defaultChecked={i === 0} /> {w.label}</label>
             ))}
           </fieldset>
-          <JobFields areas={areas} people={people} defaults={{ contact: me }} />
+          <JobFields areas={areas} people={people} defaults={visit ? {
+            contact: me, areaIds: visit.area_ids as string[], scope: visit.description,
+            start: toVenueLocal(visit.starts_at, venueTz).slice(0, 10), end: toVenueLocal(visit.ends_at, venueTz).slice(0, 10),
+          } : { contact: me }} />
           <p className="muted">Next you answer the venue&apos;s screening questions. Nothing is sent to the venue until you submit.</p>
         </ActionForm>
       )}

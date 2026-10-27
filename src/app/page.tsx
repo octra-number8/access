@@ -37,6 +37,7 @@ export default async function Home() {
         {session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/venue/inductions">Inductions</Link></li> : null}
         {session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/venue/screening">Activity screening set-up</Link></li> : null}
         {session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/venue/permits">Permit set-up</Link></li> : null}
+        {session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/venue/entry">Entry set-up</Link> · <Link href="/venue/passes">Card passes</Link></li> : null}
         {session.organisationAdmin.length > 0 || session.tenantAdminCustomerIds.length > 0 || session.appointmentVenueIds.length > 0 ? <li><Link href="/jobs">Jobs</Link></li> : null}
         {session.organisationAdmin.map((o) => (
           <li key={o.organisation_id}><Link href={`/organisation/${o.organisation_id}`}>Your organisation</Link> ({o.role} administrator)</li>
@@ -46,6 +47,9 @@ export default async function Home() {
         {session.appointmentVenueIds.length > 0 || session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/controls">Controls desk</Link></li> : null}
         {session.appointmentVenueIds.length > 0 || session.tenantAdminCustomerIds.length > 0 || session.organisationAdmin.length > 0 ? <li><Link href="/emergency">Emergency work</Link></li> : null}
         {session.appointmentVenueIds.length > 0 ? <li><Link href="/facilitate">Record a facilitated induction</Link></li> : null}
+        {session.appointmentVenueIds.length > 0 ? <li><Link href="/gate">Gate</Link> · <Link href="/gate/overrides">Gate overrides</Link></li> : null}
+        {session.personIds.length > 0 || session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/visits">Visits</Link></li> : null}
+        {session.personIds.length > 0 ? <li><Link href="/pass">My pass</Link></li> : null}
         {isOps ? <li><Link href="/operations">Platform operations</Link></li> : null}
       </ul>
       {session.personIds.length === 0 ? (

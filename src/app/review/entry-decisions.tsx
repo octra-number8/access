@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { ActionForm } from "@/components/ActionForm";
+import { type ChaseItem, ChasingView } from "@/components/chasing-view";
 import { EntryRulesView, OutageView, PurposesView } from "@/components/gate/config-view";
 import { type Purpose, visitState } from "@/lib/gate";
 import { venueTime } from "@/lib/permits";
 import { supabaseServer } from "@/lib/supabase/server";
+import { decideChasing } from "../venue/chasing/actions";
 import { decideEntryRules, decideOutage, decidePurposes, type EntryRules, type OutageProcedure } from "../venue/entry/actions";
 
 // The access authority's queue (P7-2, Q121, Q123): entry rules and visit purposes to approve,
@@ -23,6 +25,14 @@ export async function EntryDecisions() {
   const names = new Map<string, string>([...(capacities ?? []).map((c) => [c.code, c.label] as [string, string]),
     ...(courses ?? []).map((c) => [c.id, c.title] as [string, string]), ...(areas ?? []).map((a) => [a.id, a.name] as [string, string])]);
   const venue = new Map((venues ?? []).map((v) => [v.id, v]));
+  const chaseIds = (purposes ?? []).filter((r) => r.kind === "chasing").flatMap((r) => Object.values((r.content as { items: Record<string, ChaseItem> }).items)
+    .flatMap((x) => [...(x.escalate_to?.person_ids ?? []), ...(x.escalate_to?.appointment_type_ids ?? [])]));
+  const [{ data: chasePeople }, { data: chaseTypes }] = await Promise.all([
+    db.from("person").select("id, given_name, family_name").in("id", chaseIds),
+    db.from("appointment_type").select("id, name").in("id", chaseIds),
+  ]);
+  const chaseNames = new Map<string, string>([...(chasePeople ?? []).map((p) => [p.id, `${p.given_name} ${p.family_name}`] as [string, string]),
+    ...(chaseTypes ?? []).map((t) => [t.id, t.name] as [string, string])]);
   const k = () => randomUUID();
   const decide = (action: typeof decideEntryRules, v: { id: string; row_version: number }, what: string) => (
     <>
@@ -67,6 +77,14 @@ export async function EntryDecisions() {
           <p><strong>{venue.get(r.venue_id)?.name}</strong> — outage procedure version {r.version_no}</p>
           <OutageView content={r.content as OutageProcedure} />
           {decide(decideOutage, r, "this outage procedure")}
+        </div>
+      ))}
+      <h2>Reminders and escalation to approve</h2>
+      {(purposes ?? []).filter((r) => r.kind === "chasing").length === 0 ? <p>None.</p> : (purposes ?? []).filter((r) => r.kind === "chasing").map((r) => (
+        <div className="panel" key={r.id}>
+          <p><strong>{venue.get(r.venue_id)?.name}</strong> — reminders and escalation, version {r.version_no}</p>
+          <ChasingView items={(r.content as { items: Record<string, ChaseItem> }).items} names={chaseNames} />
+          {decide(decideChasing, r, "this chasing")}
         </div>
       ))}
       <h2>Visits waiting for a decision</h2>

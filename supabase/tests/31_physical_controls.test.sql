@@ -217,6 +217,13 @@ select is(tests.status_of(tests.w('wa')) || '/' || tests.status_of(tests.w('wah'
 select is(tests.holding(tests.w('wah')), array['control_failure'], 'the protected permit by the failure');
 select is(tests.holding(tests.w('hw')), array['job_stop'], 'the rest of the job by a stop that is lifted with it');
 select is((select status from core.isolation where id = tests.w('iso')), 'applied', 'and the isolation must be proved again');
+select tests.logout();
+select ok((select count(*) from core.notification where event = 'control_failed' and record_id = tests.w('iso')) > 0,
+  'the failure is a critical notice to the people who answer for the control (P8-3)');
+select is((select count(*)::int from core.notification n join core.user_account u on u.person_id = n.recipient_person_id
+            where n.event = 'control_failed' and u.auth_user_id = tests.w('u_op')), 0, 'not to the person who reported it');
+select ok((select count(*) from core.notification where event = 'work_stopped' and record_id = tests.w('wah')) > 0,
+  'and each permit it stopped is a critical notice to that permit''s owners');
 select tests.login(tests.w('u_ivy'));
 select is(api.lift_suspension(tests.key(), (select id from core.permit_suspension where permit_id = tests.w('wah') and kind = 'control_failure'), 'Fine') ->> 'code',
   'not_this_route', 'a permit issuer cannot lift a control failure');
@@ -372,6 +379,21 @@ select tests.login(tests.w('u_ada'));
 select ok((select bool_or(x ->> 'system' = 'HV ring') from jsonb_array_elements(api.controls_desk() -> 'isolations') x), 'the isolation authority''s desk lists HV1');
 select tests.login(tests.w('u_op'));
 select ok(api.permit_detail(tests.w('wah'))::text !~* '(op@a\.test|07000|ada@a\.test)', 'the permit''s controls carry names, never contact details');
+
+-- ---- An impairment past its approved duration is critical (P8-3) -------------------------------------------------
+select tests.logout();
+select tests.set_w('u_runner31', tests.new_user('runner31@octra.test'));
+insert into core.service_account (auth_user_id, purpose) values (tests.w('u_runner31'), 'job_runner');
+alter table core.impairment disable trigger user;
+update core.impairment set impaired_at = now() - interval '30 days' where id = tests.w('imp');
+alter table core.impairment enable trigger user;
+select tests.login(tests.w('u_runner31'));
+select ok((api.run_notification_jobs() ->> 'overdue')::int > 0, 'the watch job finds the impairment overdue');
+select is((api.run_notification_jobs() ->> 'overdue')::int, 0, 'and tells its owners once, however often it runs');
+select tests.logout();
+select is((select string_agg(distinct class, ',') from core.notification where event = 'impairment_overdue' and record_id = tests.w('imp')), 'critical',
+  'as a critical notice');
+select is((select status from core.impairment where id = tests.w('imp')), 'impaired', 'which changes nothing on the record (invariant 10)');
 
 select tests.logout();
 select * from finish();

@@ -38,6 +38,7 @@ export default async function Home() {
         {session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/venue/screening">Activity screening set-up</Link></li> : null}
         {session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/venue/permits">Permit set-up</Link></li> : null}
         {session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/venue/entry">Entry set-up</Link> · <Link href="/venue/passes">Card passes</Link></li> : null}
+        {session.tenantAdminCustomerIds.length > 0 ? <li><Link href="/venue/chasing">Reminders and escalation</Link></li> : null}
         {session.organisationAdmin.length > 0 || session.tenantAdminCustomerIds.length > 0 || session.appointmentVenueIds.length > 0 ? <li><Link href="/jobs">Jobs</Link></li> : null}
         {session.organisationAdmin.map((o) => (
           <li key={o.organisation_id}><Link href={`/organisation/${o.organisation_id}`}>Your organisation</Link> ({o.role} administrator)</li>

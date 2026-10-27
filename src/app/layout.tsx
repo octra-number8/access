@@ -16,7 +16,9 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const { data: auth } = await (await supabaseServer()).auth.getUser();
+  const db = await supabaseServer();
+  const { data: auth } = await db.auth.getUser();
+  const unread = auth.user ? (await db.from("notification").select("id", { count: "exact", head: true }).is("read_at", null)).count ?? 0 : 0;
   return (
     <html lang="en-GB" className={hanken.variable}>
       <body className="min-h-dvh font-sans antialiased">
@@ -27,7 +29,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Image src="/brand/octra-mark.png" alt="" width={28} height={28} priority />
               Octra Access
             </Link>
-            {auth.user ? <form action={signOut} className="ml-auto"><button type="submit" className="secondary">Sign out</button></form> : null}
+            {auth.user ? (
+              <div className="ml-auto flex items-center gap-4">
+                <Link href="/inbox" className="font-semibold text-ink underline underline-offset-4">Inbox{unread ? ` (${unread} new)` : ""}</Link>
+                <form action={signOut}><button type="submit" className="secondary">Sign out</button></form>
+              </div>
+            ) : null}
           </div>
         </header>
         <main id="main" className="mx-auto max-w-5xl px-4 py-6">{children}</main>

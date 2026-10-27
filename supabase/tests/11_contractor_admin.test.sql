@@ -48,6 +48,10 @@ select is(api.create_person_invitation(tests.key(), tests.w('org_c'), 'employee'
 select tests.login(tests.w('u_cara'));
 select is(api.transfer_accountable_admin(tests.key(), tests.w('org_c'), tests.w('p_ian')) ->> 'ok', 'true',
   'the accountable administrator can hand over the role');
+select tests.logout();
+select is((select count(*)::int from core.notification where event = 'accountable_admin_changed' and record_id = tests.w('org_c')
+             and recipient_person_id = tests.w('p_a1')), 1, 'the venue''s administrators are told who now answers for the organisation (C1)');
+select tests.login(tests.w('u_cara'));
 select is(api.appoint_deputy_admin(tests.key(), tests.w('org_c'), tests.w('p_jo')) ->> 'code', 'not_organisation_admin',
   'and then no longer administers the organisation');
 select tests.logout();

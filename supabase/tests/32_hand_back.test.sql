@@ -347,6 +347,14 @@ insert into t_r select 'em', api.authorise_emergency(tests.key(), tests.w('v1'),
   array[tests.w('hall1')], '{}', tests.w('org_o'), array[tests.w('p_op'), tests.w('p_owen')], 'Water off at the main; sockets isolated at DB-3');
 select is((select v ->> 'ok' from t_r where name = 'em'), 'true', 'the emergency authority authorises the work to start');
 select ok((select v ->> 'reference' from t_r where name = 'em') like 'EM-%', 'with a reference');
+select tests.logout();
+select is((select string_agg(distinct class, ',') from core.notification where event = 'emergency_authorised'
+             and record_id = (select (v ->> 'id')::uuid from t_r where name = 'em')), 'critical', 'emergency work is a critical notice (P8-3)');
+select is((select count(*)::int from core.notification where event = 'emergency_authorised' and recipient_person_id = tests.w('p_a1')), 1,
+  'to the venue''s administrators');
+select is((select count(*)::int from core.notification where event = 'emergency_authorised' and recipient_person_id = tests.w('p_eve')), 0,
+  'not to the person who authorised it');
+select tests.login(tests.w('u_eve'));
 select is((select (x ->> 'overdue')::boolean from jsonb_array_elements(api.emergency_register() -> 'emergencies') x), false,
   'the retrospective permit is due within the venue''s deadline');
 select tests.logout();

@@ -149,6 +149,16 @@ select is((select count(*)::int from core.reconciliation_exception where code = 
 select is((select count(*)::int from core.reconciliation_exception e join core.manual_fallback_entry f on f.id = e.fallback_entry_id
              where f.decision = 'refused'), 0, 'a refusal raises nothing');
 select is((select count(*)::int from core.reconciliation_exception where resolved_at is null), 4, 'all four are open');
+select tests.logout();
+select is((select count(*)::int from core.notification where event = 'outage_exception' and recipient_person_id = tests.w('p_ivy')
+             and record_id in (select id from core.reconciliation_exception where kind = 'work')), 2,
+  'each work exception is a critical notice to the permit''s issuer (Q203)');
+select is((select count(*)::int from core.notification n join core.user_account u on u.person_id = n.recipient_person_id
+            where n.event = 'outage_exception' and u.auth_user_id = tests.w('u_axel')
+              and n.record_id in (select id from core.reconciliation_exception where kind = 'entry')), 2,
+  'and each entry exception to the access administrators for the gate');
+select is((select count(*)::int from core.notification n join core.user_account u on u.person_id = n.recipient_person_id
+            where n.event = 'outage_exception' and u.auth_user_id = tests.w('u_gail')), 0, 'never to the operator who made the entry');
 
 -- An entry with no manifest, or an old one, still raises stopped work.
 select tests.login(tests.w('u_gail'));

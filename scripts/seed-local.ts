@@ -2,8 +2,8 @@
 //   npx supabase db reset && scripts/local-env.sh && node scripts/seed-local.ts
 // Sign in with the printed addresses; codes arrive in Mailpit (http://127.0.0.1:55624).
 // The scanner's test credentials are written to .env.scanner.local (git-ignored).
-import { createHash, randomUUID } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import postgres from "postgres";
 import { loadLocalEnv } from "../e2e/env.ts";
@@ -239,6 +239,18 @@ await must(a1, "publish_emergency_contacts", { p_idempotency_key: key(), p_venue
 await must(a1, "register_custody_item", { p_idempotency_key: key(), p_venue_id: v.venueId, p_kind: "hatch_key", p_label: "Roof hatch 2 key",
   p_reference: "K-RH2", p_area_id: null });
 
+// Phase 8a: the job runner service account (expiry, notification jobs, email), and the
+// scheduler's shared secret, added to .env.local for `next dev`. Never printed.
+const runner = await makeUser("jobs+demo@octra.local");
+const sqlJobs = postgres(DB_URL, { max: 1 });
+await sqlJobs`insert into core.service_account (auth_user_id, purpose) values
+  (${runner.userId}, 'job_runner'), (${runner.userId}, 'permit_expiry'), (${runner.userId}, 'notification_sender')`;
+await sqlJobs.end();
+const envPath = new URL("../.env.local", import.meta.url);
+const kept = readFileSync(envPath, "utf8").split("\n").filter((l) => l && !/^(JOB_RUNNER_EMAIL|JOB_RUNNER_PASSWORD|CRON_SECRET)=/.test(l));
+writeFileSync(envPath, [...kept, `JOB_RUNNER_EMAIL=${runner.email}`, `JOB_RUNNER_PASSWORD=${runner.password}`,
+  `CRON_SECRET=${randomBytes(24).toString("base64url")}`, ""].join("\n"));
+
 writeFileSync(
   new URL("../.env.scanner.local", import.meta.url),
   [`SUPABASE_URL=${process.env.NEXT_PUBLIC_SUPABASE_URL}`, `SUPABASE_ANON_KEY=${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
@@ -257,4 +269,5 @@ console.log(JSON.stringify({
   access_authority: "ava+demo@venue.local",
   gate_operator: "gil+demo@venue.local",
   scanner_env: ".env.scanner.local",
+  job_runner: "credentials and CRON_SECRET in .env.local; run node scripts/run-jobs.ts",
 }, null, 2));

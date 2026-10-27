@@ -271,6 +271,11 @@ export const AUTHORITY_ACTIONS = [
   "gate.submit_fallback",
   "gate.reconcile",
   "gate.reconcile_work",
+  "notification.mark_read",
+  "notification.set_preferences",
+  "notification.claim_delivery",
+  "notification.record_delivery",
+  "job.run",
 ] as const;
 
 export type AuthorityAction = (typeof AUTHORITY_ACTIONS)[number];

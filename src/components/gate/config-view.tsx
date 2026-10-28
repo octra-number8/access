@@ -42,13 +42,15 @@ export function PurposesView({ purposes, names }: { purposes: Purpose[]; names: 
   );
 }
 
-export function OutageView({ content }: { content: { instruction?: string; steps: string[]; manifest_max_age_minutes?: number } }) {
+export function OutageView({ content }: { content: { instruction?: string; steps: string[]; manifest_max_age_minutes?: number; manifest_refresh_minutes?: number } }) {
   return (
     <>
       <p><strong>{content.instruction || "No instruction yet."}</strong></p>
       {content.steps.length ? <ol style={{ paddingLeft: "1.5rem", listStyle: "decimal" }}>{content.steps.map((s, i) => <li key={i}>{s}</li>)}</ol> : <p>No steps yet.</p>}
       <p>{content.manifest_max_age_minutes ? `A manifest may be used for look-up for ${content.manifest_max_age_minutes} minutes after it is made.`
         : "Not yet set: how long a manifest may be used."}</p>
+      <p>{content.manifest_refresh_minutes ? `A gate device that is online downloads a fresh manifest every ${content.manifest_refresh_minutes} minutes.`
+        : "No automatic refresh: gate staff refresh the manifest by hand."}</p>
     </>
   );
 }

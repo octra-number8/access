@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActionForm } from "@/components/ActionForm";
 import { Blocked } from "@/components/Blocked";
 import { EntryResultView } from "@/components/gate/entry-result";
+import { keepGatePageOffline } from "@/lib/gate-device";
 import { ping, recordGateAction, scanPass, type ScanOutcome } from "./actions";
 import { ManifestPanel, OfflineDesk, useGateStore } from "./offline";
 
@@ -35,6 +36,9 @@ export function GateDesk({ gatePointId, gateName, tz }: { gatePointId: string; g
     const down = () => setOffline(true);
     window.addEventListener("offline", down);
     if (!navigator.onLine) setOffline(true);
+    // The page may be the device's saved copy (7d-2): if Octra cannot be reached, start offline.
+    ping().catch(() => setOffline(true));
+    keepGatePageOffline().catch(() => { /* the page works without it */ });
     return () => window.removeEventListener("offline", down);
   }, []);
 

@@ -132,6 +132,14 @@ Each entry records what was decided, by whom, and what it changes. Open items ar
   - **Interim, subject to the privacy adviser (G11):** 8c-1 (external packs always leave out a person's own documents); 8c-3 (free-text home addresses not pattern-matched; the cover tells the exporter to review); 8d-7 (document visibility not widened to correction appointees).
 - P8-16 and G11 remain open.
 
+## D-024 — Phase 6 and 7 build decisions settled
+- **Date:** 28 October 2026 · **Decided by:** Wes Pierce
+- Accepted as recommended:
+  - **As built:** 6a-1 (a child permit ending its window expires without stopping its Work Approval); 6a-2 (stop categories fixed in code); 6b-1 (isolation and impairment rules published in one step by an appointed technical authority, for the pilot); 6b-3 (control failure for isolations and impairments only); 6b-4 (isolations and impairments asked for only against permits); 6c-2 (where a rejected hand-back returns); 6c-3 (area stops and restriction checks keep the job's full areas after a partial return; the gate shows permits only as notices, P7-9); 6d-1 (versioned venue emergency contacts; publishing them is a go-live checklist item); 6d-2 (area appointments do not cover systems, D-008); 7a-1 (a gate result is valid for 5 minutes, fixed); 7a-3 (admission on the most favourable fully qualifying engagement); 7b-2 (occupiers see visits only through their appointed representative); 7c-1 (the in-house QR encoder kept); 7c-3 (settled by 7d: the phone hides a code it cannot refresh); 7d-1 (reconciliation against the live record at upload); 7d-4 (work exceptions resolved through `gate.reconcile_work`); I1 (induction videos up to 200 MB; the hosted project's global upload limit must allow it).
+  - **For the pilot, to revisit:** 6a-3 (no minimum team size until the technical authority asks for one); 6b-2 (fire watch recorded by the supervisor naming the watcher); 7a-2 (escort per audience, not per area); 7b-1 (attendance from gate scans only); 7c-2 (one covering appointment per gate person; no capacity chooser yet).
+  - **Built before the pilot:** 7d-2 (the gate page works after a reload during an outage); 7d-3 (gate devices refresh their manifest automatically while online, at an interval the venue sets with no default; manual until set).
+- 6c-1, P7-14, E1, N1 and N2 remain open.
+
 ---
 
 ## CLAUDE.md wording — applied 24 October 2026 (approved by Wes Pierce)

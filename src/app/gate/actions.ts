@@ -62,7 +62,7 @@ export interface ManifestEntry {
   audience: string | null; areas: string[]; escort: string; reasons: Array<{ words: string; owner: string }>; notices: string[];
 }
 export interface Manifest {
-  manifest_id: string; made_at: string; max_age_minutes: number; gate_point: string; venue: string; timezone: string;
+  manifest_id: string; made_at: string; max_age_minutes: number; refresh_minutes: number | null; gate_point: string; venue: string; timezone: string;
   instruction: string; steps: string[]; entries: ManifestEntry[];
 }
 export interface FallbackEntry {

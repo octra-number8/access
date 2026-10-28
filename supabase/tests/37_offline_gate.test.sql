@@ -49,6 +49,24 @@ select ok(api.propose_venue_config(tests.key(), tests.w('op1'), tests.version('c
   'the manifest''s maximum age must be set (Q198)');
 select is(api.save_venue_config_draft(tests.key(), tests.w('op1'), tests.version('core.venue_config_version', tests.w('op1')),
   '{"instruction": "x", "steps": ["y"], "manifest_max_age_minutes": 0}') ->> 'code', 'invalid_content', 'to a whole number of minutes from 1 to 1440');
+-- Automatic refresh (7d-3, D-024): optional, a whole number of minutes, shorter than the maximum age.
+select is(api.save_venue_config_draft(tests.key(), tests.w('op1'), tests.version('core.venue_config_version', tests.w('op1')),
+  '{"instruction": "x", "steps": ["y"], "manifest_max_age_minutes": 60, "manifest_refresh_minutes": 0}') ->> 'code', 'invalid_content',
+  '7d-3: automatic refresh is at least a minute');
+select is(api.save_venue_config_draft(tests.key(), tests.w('op1'), tests.version('core.venue_config_version', tests.w('op1')),
+  '{"instruction": "x", "steps": ["y"], "manifest_max_age_minutes": 60, "manifest_refresh_minutes": 7.5}') ->> 'code', 'invalid_content',
+  'in whole minutes');
+select is(api.save_venue_config_draft(tests.key(), tests.w('op1'), tests.version('core.venue_config_version', tests.w('op1')),
+  '{"instruction": "x", "steps": ["y"], "manifest_max_age_minutes": 60, "manifest_refresh_minutes": "15"}') ->> 'code', 'invalid_content',
+  'as a number');
+select is(api.save_venue_config_draft(tests.key(), tests.w('op1'), tests.version('core.venue_config_version', tests.w('op1')),
+  '{"instruction": "x", "steps": ["y"], "manifest_refresh_minutes": 1440}') ->> 'code', 'invalid_content',
+  'of at most 1439 minutes, even before the maximum age is set');
+select ok(api.save_venue_config_draft(tests.key(), tests.w('op1'), tests.version('core.venue_config_version', tests.w('op1')),
+  '{"instruction": "x", "steps": ["y"], "manifest_max_age_minutes": 60, "manifest_refresh_minutes": 60}')::text like '%more often than its maximum age%',
+  'and more often than the maximum age, so an online device never holds an expired manifest');
+select is(api.save_venue_config_draft(tests.key(), tests.w('op1'), tests.version('core.venue_config_version', tests.w('op1')),
+  '{"instruction": "x", "steps": ["y"], "manifest_max_age_minutes": 60, "manifest_refresh_minutes": 59}') ->> 'ok', 'true', 'one minute less is accepted');
 select tests.must(api.save_venue_config_draft(tests.key(), tests.w('op1'), tests.version('core.venue_config_version', tests.w('op1')),
   '{"instruction": "Control room leads. Admit only after the supervisor confirms.", "steps": ["Check photo ID", "Call the supervisor"],
     "manifest_max_age_minutes": 60}', 'Outage procedure (test values)'));
@@ -72,6 +90,24 @@ select tests.set_w('m1', (select (v ->> 'manifest_id')::uuid from t_r where name
 select is((select (v ->> 'max_age_minutes')::int from t_r where name = 'm1'), 60, 'carrying the venue''s maximum age');
 select is((select v ->> 'instruction' from t_r where name = 'm1'), 'Control room leads. Admit only after the supervisor confirms.',
   'and the instruction for the offline banner (Q199)');
+select is((select v -> 'refresh_minutes' from t_r where name = 'm1'), 'null'::jsonb,
+  '7d-3: with no refresh interval in the procedure (none is required), the device refreshes by hand');
+-- Version 2 of the procedure sets automatic refresh; manifests made under it carry the interval.
+select tests.login(tests.w('u_a1'));
+select tests.set_w('op2', (api.create_venue_config_draft(tests.key(), tests.w('v1'), 'outage_procedure') ->> 'id')::uuid);
+select tests.must(api.save_venue_config_draft(tests.key(), tests.w('op2'), tests.version('core.venue_config_version', tests.w('op2')),
+  '{"instruction": "Control room leads. Admit only after the supervisor confirms.", "steps": ["Check photo ID", "Call the supervisor"],
+    "manifest_max_age_minutes": 60, "manifest_refresh_minutes": 15}', 'Outage procedure v2 (test values)'));
+select tests.must(api.propose_venue_config(tests.key(), tests.w('op2'), tests.version('core.venue_config_version', tests.w('op2'))));
+select tests.login(tests.w('u_axel'));
+select tests.must(api.decide_venue_config(tests.key(), tests.w('op2'), tests.version('core.venue_config_version', tests.w('op2')), 'approve', 'Refresh agreed'));
+select tests.login(tests.w('u_gail'));
+insert into t_r select 'm1r', api.download_manifest(tests.key(), tests.w('north'));
+select is((select (v ->> 'refresh_minutes')::int from t_r where name = 'm1r'), 15, 'a manifest made under version 2 carries its refresh interval');
+select tests.logout();
+select is((select outage_config_id from core.gate_manifest where id = (select (v ->> 'manifest_id')::uuid from t_r where name = 'm1r')), tests.w('op2'),
+  'and is recorded against that version, like any other manifest');
+select tests.login(tests.w('u_gail'));
 select is((select e ->> 'outcome' from t_r, jsonb_array_elements(v -> 'entries') e where name = 'm1' and e ->> 'person_id' = tests.w('p_op')::text), 'admit',
   'OP is in it, as the live record judged him then');
 select ok((select (e -> 'pass_numbers') ? (select pass_number from core.person_pass where person_id = tests.w('p_op') and revoked_at is null)

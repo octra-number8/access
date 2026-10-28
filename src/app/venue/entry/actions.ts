@@ -169,7 +169,7 @@ export async function revokePass(_: ActionResult, f: FormData): Promise<ActionRe
 }
 
 // ---- Outage procedure (Q198, Q199, Q201, P7-10) ------------------------------------------------------
-export interface OutageProcedure { instruction?: string; steps: string[]; manifest_max_age_minutes?: number }
+export interface OutageProcedure { instruction?: string; steps: string[]; manifest_max_age_minutes?: number; manifest_refresh_minutes?: number }
 
 export async function startOutageDraft(_: ActionResult, f: FormData): Promise<ActionResult> {
   return run("create_venue_config_draft", { p_idempotency_key: text(f, "key"), p_venue_id: text(f, "venue_id"), p_kind: "outage_procedure" },
@@ -178,10 +178,13 @@ export async function startOutageDraft(_: ActionResult, f: FormData): Promise<Ac
 
 export async function saveOutage(_: ActionResult, f: FormData): Promise<ActionResult> {
   const age = text(f, "max_age");
+  const refresh = text(f, "refresh");
   if (age !== "" && !/^\d+$/.test(age)) return invalid("The manifest's maximum age is a whole number of minutes.");
+  if (refresh !== "" && !/^\d+$/.test(refresh)) return invalid("Automatic refresh is a whole number of minutes.");
   return save<OutageProcedure>("venue_config", text(f, "version_id"), text(f, "key"), (c) => {
     const next: OutageProcedure = { ...c, instruction: text(f, "instruction"), steps: text(f, "steps").split("\n").map((s) => s.trim()).filter(Boolean) };
     if (age === "") delete next.manifest_max_age_minutes; else next.manifest_max_age_minutes = Number(age);
+    if (refresh === "") delete next.manifest_refresh_minutes; else next.manifest_refresh_minutes = Number(refresh);
     return next;
   }, "Outage procedure saved");
 }

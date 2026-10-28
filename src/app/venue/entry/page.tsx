@@ -181,6 +181,9 @@ export default async function EntrySetup() {
               <textarea name="steps" rows={5} defaultValue={(outCurrent.content as OutageProcedure).steps.join("\n")} /></label>
             <label>How long a manifest may be used, in minutes (1 to 1440)
               <input name="max_age" type="number" min={1} max={1440} step={1} defaultValue={(outCurrent.content as OutageProcedure).manifest_max_age_minutes ?? ""} /></label>
+            <label>Refresh the manifest automatically every, in minutes (optional; shorter than the time above)
+              <input name="refresh" type="number" min={1} max={1439} step={1} defaultValue={(outCurrent.content as OutageProcedure).manifest_refresh_minutes ?? ""} />
+              <span className="muted text-sm">Each refresh is a new manifest, kept and disposed of like any other. Leave empty and gate staff refresh it by hand.</span></label>
           </ActionForm>
           <ActionForm action={proposePurposes} what="Proposing the outage procedure" submitLabel="Propose to the access authority">
             <input type="hidden" name="key" value={k()} />

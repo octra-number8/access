@@ -3,7 +3,7 @@ import { Hanken_Grotesk } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
-import { signOut } from "./actions";
+import { SignOutButton } from "@/components/sign-out-button";
 import "./globals.css";
 
 // Self-hosted at build time by next/font: browsers never contact Google. (From OCTRA Induct.)
@@ -32,7 +32,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {auth.user ? (
               <div className="ml-auto flex items-center gap-4">
                 <Link href="/inbox" className="font-semibold text-ink underline underline-offset-4">Inbox{unread ? ` (${unread} new)` : ""}</Link>
-                <form action={signOut}><button type="submit" className="secondary">Sign out</button></form>
+                <SignOutButton />
               </div>
             ) : null}
           </div>

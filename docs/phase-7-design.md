@@ -445,7 +445,7 @@ Implemented in `supabase/migrations/20261025000050` (catalogue, outage procedure
 - Wording ("1 needs", "Photo ID").
 
 **Not covered:**
-- **Reloading offline:** the gate page is not available offline. If a device reloads during an outage, the page will not load (no service worker). Entries already recorded stay in the device's storage and upload when the page next loads online (7d-2).
+- **Reloading offline:** the gate page is not available offline. If a device reloads during an outage, the page will not load (no service worker). Entries already recorded stay in the device's storage and upload when the page next loads online (7d-2). *Built under D-024 (§19).*
 - **Suspension after sync in the browser:** pgTAP proves it end to end through the API (the walk-through had no live permit).
 - **Scenario 6 over HTTP:** not automated in the end-to-end suite yet; pgTAP and the walk-through cover it.
 - **A device clock set in the future:** its entries are refused on upload until corrected, and the screen shows which entry. There is no way to correct an entry on the device.
@@ -458,3 +458,20 @@ Implemented in `supabase/migrations/20261025000050` (catalogue, outage procedure
 | 7d-2 | Should the gate page work after a reload during an outage? This needs a small service worker that caches the gate page. | **Yes, before the pilot.** Today the page must stay open through an outage. Until then, the outage procedure should include a paper log. |
 | 7d-3 | Manifests are downloaded by hand. Should a gate device refresh its manifest automatically while online, for example every quarter of its permitted age? | **Yes, with the venue's agreement.** Each manifest is a personal-data record (retention in phase 8), so the frequency belongs in the outage procedure. Until then, refresh at the start of each shift. |
 | 7d-4 | Work exceptions are resolved by a separate `gate.reconcile_work` action on the issuer's appointment type, scoped to the permit's class and area, rather than by "the issuer" as a person. Accept? | **Yes.** Authority comes from an appointment (invariant 1); the seed adds it to the permit issuer type. |
+
+---
+
+## 19. As built: D-024 follow-ups (7d-2, 7d-3, 28 October 2026)
+
+| Decision | As built | Proved by |
+|---|---|---|
+| 7d-2: the gate page after a reload during an outage | A service worker (`public/gate-sw.js`) registered by the gate page with scope `/gate`, in production builds only. **What it keeps:** the gate page itself, per gate point, as last loaded online (venue and gate names only), and the app's versioned static files. The manifest and manual entries stay in the page's own storage, as in 7d. **How it serves:** the network first; the saved copy only when the network fails. The page then checks Octra once and starts in offline mode if it cannot reach it (invariant 11). A gate never saved on the device gets a plain page: "OFFLINE — this gate page was not saved on this device… record every entry in the paper log." Nothing outside `/gate` is ever served from a saved copy. **Signing out** deletes the saved page and files, and every manifest on the device. Manual entries not yet uploaded stay: they must still be uploaded and checked (Q202). | In a headless Chrome with a throwaway profile, against a production build. Gil signed in, opened the gate and downloaded a manifest; the page and 13 files were saved. **Real outage:** with the production server stopped, a reload brought the gate back in offline mode, with the banner, the venue's steps and the manifest. An unsaved gate showed the paper-log page; the inbox was not served. **Sign-out:** no saved copies and no manifests left. |
+| 7d-3: automatic manifest refresh | The outage procedure gains an optional "refresh the manifest automatically every N minutes" (migration 0064): 1 to 1439, shorter than the maximum age, **no default**. Without it, refresh stays manual. Each manifest carries the interval of the procedure it was made under. While the gate page is open, visible and online, the device downloads a fresh manifest when the interval has passed. Each refresh is an ordinary download: same appointment, a new manifest record, disposed of under retention like any other. A refused refresh pauses the automatic refresh until someone refreshes by hand; a lost connection just waits. | pgTAP 37 (+12): validation, optional, carried on the manifest, recorded against its procedure version. Mutations: 7 of 7 caught. In the browser: with a 2-minute interval, Gil's 13:28:04 manifest was replaced at 13:30:05 without anyone acting. |
+
+**Fixed during the build:** the page first waited on `navigator.serviceWorker.ready`. A gate page reached by an in-app link from sign-in never matches the `/gate` scope, so it waited for ever and saved nothing. It now posts to the registered worker directly.
+
+**Not covered:**
+- **The app's built-in browser pane** cannot register service workers at all ("unknown error when fetching the script"), although the script is served correctly. The offline reload was proved in headless Chrome instead. Real gate devices (Chrome or Safari on a tablet or phone) need checking during the pilot's outage exercise. Safari was not tested.
+- **An upgraded app:** a gate page saved before a deployment uses that version's files. They stay in the cache, so it still works offline, but its first online action after reconnecting may need a reload. The page says "Try to reconnect" already. A version check is not built.
+- **Automatic refresh with the page in the background** (another tab, a locked screen) does not run. The manifest then ages as before, and the offline banner shows its age.
+

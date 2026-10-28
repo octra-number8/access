@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "octra-web", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 3000 }
+    { "name": "octra-web", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 3000 },
+    { "name": "octra-prod", "runtimeExecutable": "npx", "runtimeArgs": ["next", "start", "-p", "3001"], "port": 3001 }
   ]
 }

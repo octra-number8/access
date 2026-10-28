@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Blocked } from "@/components/Blocked";
 import { ACTION_WORDS, IDENTITY_WORDS } from "@/lib/gate";
+import { entriesKey, manifestKey } from "@/lib/gate-device";
 import { venueTime } from "@/lib/permits";
 import { downloadManifest, type FallbackEntry, type Manifest, type ManifestEntry, uploadFallback, type Uploaded } from "./actions";
 
@@ -11,8 +12,6 @@ import { downloadManifest, type FallbackEntry, type Manifest, type ManifestEntry
 // entry during an outage is a manual fallback entry under the venue's outage procedure, kept
 // here until it can be uploaded and checked against the live record.
 
-const manifestKey = (gate: string) => `octra.manifest.${gate}`;
-const entriesKey = (gate: string) => `octra.fallback.${gate}`;
 
 function load<T>(key: string): T | null {
   try { const raw = localStorage.getItem(key); return raw ? (JSON.parse(raw) as T) : null; } catch { return null; }
@@ -51,17 +50,35 @@ export function ManifestPanel({ gatePointId, tz, store }: { gatePointId: string;
   const [denial, setDenial] = useState<Extract<Uploaded, { ok: false }> | null>(null);
   const [uploaded, setUploaded] = useState<Extract<Uploaded, { ok: true }> | null>(null);
   const [uploadKey, setUploadKey] = useState(() => crypto.randomUUID());
+  const [autoPaused, setAutoPaused] = useState(false);
+  const busyRef = useRef(false);
   const { manifest, entries } = store;
 
-  async function download() {
-    setBusy(true); setDenial(null);
+  // `auto`: a scheduled refresh (7d-3). A refusal pauses it until someone refreshes by hand, so a
+  // device never keeps asking for what it was refused; a lost connection just waits for the next try.
+  async function download(auto = false) {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(true); if (!auto) { setDenial(null); setAutoPaused(false); }
     try {
       const r = await downloadManifest(gatePointId, crypto.randomUUID());
-      if (r.ok) store.setManifest(r); else setDenial(r);
+      if (r.ok) { store.setManifest(r); setDenial(null); } else { setDenial(r); if (auto) setAutoPaused(true); }
     } catch {
-      setDenial({ ok: false, code: "offline", reason: "Octra could not be reached.", missing: "A connection", resolvable_by: "Try again when connected" });
-    } finally { setBusy(false); }
+      if (!auto) setDenial({ ok: false, code: "offline", reason: "Octra could not be reached.", missing: "A connection", resolvable_by: "Try again when connected" });
+    } finally { busyRef.current = false; setBusy(false); }
   }
+
+  // Automatic refresh at the interval in the outage procedure the manifest was made under; none
+  // set means by hand only (no default, CLAUDE.md §9). Only while this page is open and online.
+  const every = manifest?.refresh_minutes ?? null;
+  const madeAt = manifest?.made_at ?? null;
+  useEffect(() => {
+    if (!every || !madeAt || autoPaused) return;
+    const due = () => document.visibilityState === "visible" && navigator.onLine && Date.now() - new Date(madeAt).getTime() >= every * 60_000;
+    const tick = () => { if (due()) void download(true); };
+    tick();
+    const t = setInterval(tick, 30_000);
+    return () => clearInterval(t);
+  }, [every, madeAt, autoPaused]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function upload() {
     setBusy(true); setDenial(null);
@@ -78,6 +95,7 @@ export function ManifestPanel({ gatePointId, tz, store }: { gatePointId: string;
     <details className="panel no-print" open={entries.length > 0 || uploaded !== null}>
       <summary><strong>For an outage</strong>{" "}
         <span className="muted">{manifest ? `manifest from ${time(manifest.made_at, tz)}` : "no manifest on this device"}
+          {manifest ? (every && !autoPaused ? ` · refreshed automatically every ${every} min` : " · refreshed by hand") : ""}
           {entries.length ? ` · ${entries.length} manual ${entries.length === 1 ? "entry" : "entries"} to upload` : ""}</span></summary>
       <div className="stack">
         {entries.length ? (
@@ -95,7 +113,8 @@ export function ManifestPanel({ gatePointId, tz, store }: { gatePointId: string;
           </div>
         ) : null}
         <p className="muted">A manifest lets you look people up during an outage. It is what Octra knew when it was made, never a current answer, and it expires after the venue&apos;s set time.</p>
-        <button type="button" className="secondary" onClick={download} disabled={busy}>{manifest ? "Refresh the manifest" : "Download a manifest"}</button>
+        {autoPaused ? <p className="notice notice-blocked">Automatic refresh is paused because the last one was refused. Refresh by hand once the reason below is resolved.</p> : null}
+        <button type="button" className="secondary" onClick={() => void download()} disabled={busy}>{manifest ? "Refresh the manifest" : "Download a manifest"}</button>
         {denial ? <Blocked what="This" denial={denial} /> : null}
       </div>
     </details>

@@ -728,3 +728,57 @@ The following stay open and are not settled here: P8-16 (who holds these appoint
 | 8d-9 | An offline manifest lists everyone admissible at that moment, so a hold on any one person keeps the whole manifest. Accept? | **Yes.** A hold should err towards keeping; manifests are small. |
 | 8d-10 | A declined batch's records are not listed again until a new schedule version is approved. Should they come back after a period instead? | **Accept for the pilot.** If venues decline for temporary reasons, add a re-listing interval as venue configuration with no default. |
 | 8d-11 | Before the pilot, should induction links, invitations, passes and contact records become retention categories? | **Yes, with 8d(b)**, as they hold email addresses; each with its own trigger (link expiry or use, invitation decision, pass revocation, relationship end). |
+
+---
+
+## 18. As built (phase 8d(b), 28 October 2026)
+
+**Implementation.**
+- **Migration** `supabase/migrations/20261025000061`:
+  - every core foreign key made deferrable (still checked immediately unless a transaction says otherwise);
+  - the closed-jobs category and its disposal;
+  - three further categories (8d-11);
+  - pack files in the file-removal queue.
+- **Code:** the retention form lists the new categories; the job runner removes pack files from the `evidence-packs` bucket.
+- **New actions:** none (283 in all).
+- **Decision 8d-11:** applied as recommended, at the start of 8d(b), except contact records (see below).
+
+**Proof.**
+- **pgTAP:** `42_retention_jobs` (44 assertions); 1,731 in the whole suite, through both runners. Test 41 now uses a truly unknown category name in its refusal check.
+- **Mutation testing:** 14 deliberate weakenings, 12 caught (five only after tests isolating each guard were added). The two missed are equivalent: a pass not yet revoked, and an invitation awaiting a match, have no trigger date, so neither can be listed anyway. The 8d(a) set still catches 43 of 44 against the changed functions.
+- **Unit:** 39 passed. Typecheck clean. End to end: 7 passed, 1 skipped.
+
+| Area | As built | Note |
+|---|---|---|
+| Closed jobs (8d-4) | **Listed when:** the job is cancelled; or routed with every permit closed, cancelled or refused (draft permits on a cancelled job allowed); or routed with no permit required, after its planned window ends. **The trigger:** the last of those state changes, or the window's end. **Never listed while:** any permit is unfinished; any isolation linked to the job is not returned to service, refused or withdrawn; any impairment is not restored, refused or withdrawn; any fire watch has not ended; any exclusion zone is not removed; any custody item is still out; or a gate reconciliation exception names one of its permits. Each of these is tested on its own. **Hold scope:** a hold on the job, its performing organisation, a named party, anyone on its revisions or teams, a linked visit, or its period, keeps it. | A removed isolation still keeps the job until it is returned to service: see 8d-13. |
+| What goes | About 55 tables' worth (`core.job_disposal_rows`): **the job and its screening:** the job, revisions, areas, systems, parties, screening, challenges, no-permit decisions, external-reference holds, class requirements; **links to it:** visit links, emergency-work links; **evidence about it:** packs, corrections; **its permits and everything under them:** versions, steps, decisions, conditions, information requests, exceptions, teams, issue and close-out snapshots, acceptances, extensions, revalidations, suspensions and lifts, hand-backs, area returns, abandonment flags, fire watches, exclusion zones, custody movements and control links; **controls only it used:** isolations and impairments linked only to this job's permits, with their locks, events, ownership, failures and resolutions. **Pack files** are queued for removal from storage. | |
+| What stays | **Belonging to others:** a control shared with another job (only this job's links go: tested); the venue's custody items. **The record that decisions were made:** status history, decision contexts, the disposal batch, and the identifier of every row deleted. **Others' evidence:** the organisations' and people's documents, which become eligible as earlier files once no permit names them. | Seen in the browser: Cara's old card was listed at the next run. |
+| How it is deleted | Inside the confirmation only. Foreign keys are deferred, every row of the job is deleted through `core.dispose_rows` (each named first, as in 8d(a)), and every check is forced before the function returns. A row outside the job that still points into it would fail the whole confirmation, and nothing would be disposed of. | |
+| Induction links, invitations, passes (8d-11) | **Induction links:** once used, revoked or expired. **Invitations:** once accepted, declined or cancelled, or expired unanswered. What an invitation created stays. A person invitation has no venue, so it is customer-wide (8d-3; tested). **Passes:** once revoked, and only when no gate check still kept names the pass. | |
+
+**Proved in the browser and on the local stack.** For WP-00001 (closed in the 8c walk-through):
+- **The pack:** Evelyn made an internal pack; it was built and stored.
+- **Back-dating:** the job's closure was back-dated 40 days (local demo only, by script).
+- **Schedule version 2:** adds closed jobs at 30 days (by script, through the API: the schedule screens were exercised in 8d(a)).
+- **Listing:** the job was **held back** by Harry's hold on Cara Electrical from the 8d(a) walk-through. Harry lifted the hold in the browser, and the next run listed the job.
+- **Confirmation:**
+  - Dev saw "Job WP-00001, Replace the aisle lamps over stand 9 (Cara Electrical Ltd)" and confirmed: 1 disposed of, 34 rows recorded by identifier.
+  - The permit page now says the permit does not exist.
+- **The next run:** removed the pack's file from storage, and listed Cara's earlier card version, which no permit names any more. Cara's documents themselves stay.
+
+**Fixed during the build:**
+- **The job's row set:** it listed the job's own identifier even after the job was gone.
+- **A pass's activity period:** it could run backwards.
+
+**Not covered:**
+- **Contact records** (`person_contact`) are not a category: they belong to the person's identity, and erasing identities is G11 and Q220.
+- **The deferred-constraint failure path** (something outside a job pointing into it) is not exercised by a test. The listing rules exclude the one such reference known today (a reconciliation exception).
+- **What holds kept back** is shown only with a batch; when a hold keeps back everything in a category, the page shows nothing (see 8d-12).
+
+### Decisions raised by the 8d(b) build
+
+| # | Question | Recommendation |
+|---|---|---|
+| 8d-12 | When a hold keeps back every record due in a category, no batch is made, so the retention page does not say what is being kept or why (only the job log counts it). Show "kept back by holds at the last run" per category? | **Yes, small and worth it before the pilot**, so the disposal officer can see a hold is working. |
+| 8d-13 | A closed job is kept while any isolation linked to it has been removed but not returned to service. Is "returned" the right end point, or does the venue treat "removed" as resolved? | **Keep "returned"**: the isolation's lifecycle is not over until the system is back in service, and the record shows who did that. |
+| 8d-14 | Contact records are not disposed of with anything; they go only when a person's identity is erased. Leave that to the identity and portability work (G11, Q220)? | **Yes.** |

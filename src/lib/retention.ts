@@ -1,7 +1,8 @@
 // Retention categories (phase 8d, §16.2). Their names, triggers and methods come from the
 // database (core.retention_categories); this list only names the form fields.
 export const RETENTION_CATEGORIES = [
-  "gate_scans", "gate_outage", "visits", "inductions", "notifications", "document_files", "rejected_uploads",
+  "closed_jobs", "gate_scans", "gate_outage", "visits", "inductions", "notifications", "document_files", "rejected_uploads",
+  "induction_links", "invitations", "passes",
 ] as const;
 
 export interface RetentionCategory {

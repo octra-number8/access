@@ -11,7 +11,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { publicEnv, serverEnv } from "./env";
 import { sendMail } from "./mail";
 import { buildPacks } from "./packs";
-import { documentsBucket } from "./supabase/storage";
+import { documentsBucket, packsBucket } from "./supabase/storage";
 
 interface Email { delivery_ids: string[]; to: string | null; subject: string; body: string; link: string | null }
 
@@ -51,13 +51,15 @@ async function deliver(db: SupabaseClient, claim: "claim_email_batch" | "claim_d
   return { sent, failed };
 }
 
-// Disposed files (8d): their records were kept and the database refuses to release them; here the
-// stored objects themselves are removed. A file already gone counts as removed.
+// Disposed files (8d): a document's record is kept and the database refuses to release it; a disposed
+// job's packs are gone with the job. Here the stored objects themselves are removed. A file already
+// gone counts as removed.
 async function removeFiles(db: SupabaseClient): Promise<{ removed: number; failed: number }> {
   const claim = (await rpc(db, "claim_file_removals", { p_limit: 50, p_lease_seconds: 120 })) as { files: Array<{ id: string; bucket: string; storage_path: string }> };
   let removed = 0, failed = 0;
   for (const f of claim.files) {
-    const { error } = f.bucket === "documents" ? await documentsBucket().remove([f.storage_path]) : { error: { message: `unknown bucket ${f.bucket}` } };
+    const bucket = f.bucket === "documents" ? documentsBucket() : f.bucket === "evidence-packs" ? packsBucket() : null;
+    const { error } = bucket ? await bucket.remove([f.storage_path]) : { error: { message: `unknown bucket ${f.bucket}` } };
     await rpc(db, "record_file_removal", { p_id: f.id, p_ok: !error, p_error: error ? error.message : null });
     if (error) failed += 1; else removed += 1;
   }

@@ -216,7 +216,7 @@ select is((select content from core.venue_config_version where id = tests.w('rs1
 select ok(api.propose_venue_config(tests.key(), tests.w('rs1'), tests.version('core.venue_config_version', tests.w('rs1')))::text like '%at least one category%',
   'an empty schedule cannot be proposed');
 select ok(api.save_venue_config_draft(tests.key(), tests.w('rs1'), tests.version('core.venue_config_version', tests.w('rs1')),
-  '{"rules": {"closed_jobs": {"days": 30, "basis": "x"}}}')::text like '%not a category of record%', 'only the listed categories');
+  '{"rules": {"everything": {"days": 30, "basis": "x"}}}')::text like '%not a category of record%', 'only the listed categories');
 select ok(api.save_venue_config_draft(tests.key(), tests.w('rs1'), tests.version('core.venue_config_version', tests.w('rs1')),
   '{"rules": {"gate_scans": {"days": 0, "basis": "x"}}}')::text like '%1 to 36500%', 'a period of whole days from 1');
 select ok(api.save_venue_config_draft(tests.key(), tests.w('rs1'), tests.version('core.venue_config_version', tests.w('rs1')),

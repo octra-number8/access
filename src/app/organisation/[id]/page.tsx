@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { CorrectionsPanel, type CorrectionTarget } from "@/components/corrections-panel";
 import { HistoryPanel } from "@/components/history-panel";
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/ActionForm";
@@ -41,7 +42,7 @@ export default async function Organisation({ params }: { params: Promise<{ id: s
   const [rels, invites, docs, types, engagements, courses, published, admins, compTypes] = await Promise.all([
     db.from("person_organisation_relationship").select("id, person_id, kind, status, row_version, acceptance_method").eq("organisation_id", id),
     db.from("invitation").select("id, invitee_email, status, expires_at, row_version").eq("organisation_id", id).order("created_at", { ascending: false }),
-    db.from("document").select("id, title, owner_kind, person_id, document_type_id").or(`organisation_id.eq.${id},provided_via_organisation_id.eq.${id}`),
+    db.from("document").select("id, title, owner_kind, person_id, document_type_id, venue_id").or(`organisation_id.eq.${id},provided_via_organisation_id.eq.${id}`),
     db.from("document_type").select("id, label, owner_level"),
     db.from("engagement").select("id, capacity_code, status").eq("organisation_id", id),
     db.from("induction_course").select("id, title"),
@@ -78,6 +79,17 @@ export default async function Organisation({ params }: { params: Promise<{ id: s
   const nonAdmins = active.filter((r) => !(admins.data ?? []).some((a) => a.person_id === r.person_id));
   const personDocVersions = (docs.data ?? []).filter((d) => d.owner_kind === "person" && latest.has(d.id));
   const k = () => randomUUID();
+  // Corrections are recorded under an appointment at one of the customer's venues (8c-5).
+  const { data: myVenues } = await db.from("venue").select("id, timezone").eq("customer_id", org.customer_id)
+    .in("id", session.appointmentVenueIds.length ? session.appointmentVenueIds : ["00000000-0000-0000-0000-000000000000"]);
+  const { data: anyVenue } = await db.from("venue").select("id, timezone").eq("customer_id", org.customer_id).limit(1);
+  const corrVenue = (myVenues ?? [])[0] ?? null;
+  const correctionTargets: CorrectionTarget[] = [
+    { kind: "organisation", id, label: org.legal_name },
+    ...active.map((r) => ({ kind: "person" as const, id: r.person_id, label: name.get(r.person_id) ?? "Person" })),
+    ...(docs.data ?? []).filter((d) => latest.has(d.id) && (!corrVenue || d.venue_id === corrVenue.id))
+      .map((d) => ({ kind: "document_version" as const, id: latest.get(d.id)!.id, label: `${d.title} v${latest.get(d.id)!.version_no}` })),
+  ];
 
   return (
     <>
@@ -332,6 +344,7 @@ export default async function Organisation({ params }: { params: Promise<{ id: s
           ))}
         </>
       ) : null}
+      <CorrectionsPanel targets={correctionTargets} venueId={corrVenue?.id ?? null} tz={corrVenue?.timezone ?? (anyVenue ?? [])[0]?.timezone ?? "Europe/London"} />
       <HistoryPanel kind="organisation" id={id} />
     </>
   );

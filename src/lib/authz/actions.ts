@@ -279,6 +279,12 @@ export const AUTHORITY_ACTIONS = [
   "evidence.export",
   "record.correct",
   "evidence.build_pack",
+  "retention.approve",
+  "retention.dispose",
+  "retention.list",
+  "retention.remove_files",
+  "legal_hold.request",
+  "legal_hold.approve",
 ] as const;
 
 export type AuthorityAction = (typeof AUTHORITY_ACTIONS)[number];

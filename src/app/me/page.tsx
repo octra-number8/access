@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/ActionForm";
+import { CorrectionsPanel } from "@/components/corrections-panel";
 import { HistoryPanel } from "@/components/history-panel";
 import { date, RELATIONSHIP_KIND, RELATIONSHIP_STATE, verificationText, type Verification } from "@/lib/labels";
 import { getSession } from "@/lib/session";
@@ -36,6 +37,8 @@ export default async function Me() {
   for (const c of (checks ?? []) as Array<Verification & { competency_id: string }>) if (!latestCheck.has(c.competency_id)) latestCheck.set(c.competency_id, c);
   const me = (people.data ?? [])[0];
   const k = () => randomUUID();
+  const { data: anyVenue } = await db.from("venue").select("timezone").limit(1);
+  const tz = (anyVenue ?? [])[0]?.timezone ?? "UTC";
 
   return (
     <>
@@ -98,6 +101,7 @@ export default async function Me() {
           </ActionForm>
         </>
       ) : null}
+      {(people.data ?? []).map((p) => <CorrectionsPanel key={`c${p.id}`} targets={[{ kind: "person", id: p.id, label: `${p.given_name} ${p.family_name}` }]} venueId={null} tz={tz} />)}
       {session.personIds.map((pid) => <HistoryPanel key={pid} kind="person" id={pid} />)}
     </>
   );

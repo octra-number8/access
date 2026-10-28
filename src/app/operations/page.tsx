@@ -18,14 +18,16 @@ export default async function Operations() {
   const db = await supabaseServer();
   const { data: isOps } = await db.rpc("am_platform_admin");
   if (!isOps) return <p>Platform operations are available to Octra platform administrators only.</p>;
-  const [{ data: settings }, { data: scanners }, { data: runs }, { data: failedMail }] = await Promise.all([
+  const [{ data: settings }, { data: scanners }, { data: runs }, { data: failedMail }, { data: files }] = await Promise.all([
     db.from("platform_setting").select("key, value, effective_from, decision_ref").order("key"),
     db.from("scanner_status").select("*").order("recorded_at", { ascending: false }),
     db.from("job_run").select("job, started_at, finished_at, outcome, counts, error").order("started_at", { ascending: false }).limit(300),
     db.from("notification_delivery").select("id, channel, attempts, last_error, created_at").eq("delivery_state", "failed").order("created_at", { ascending: false }).limit(50),
+    db.rpc("file_removal_status"),
   ]);
+  const removal = files as { waiting?: number; failing?: Array<{ since: string; attempts: number; last_error: string }> } | null;
   // Each scheduled job runs every minute (P8-6): warn when one has not succeeded for five.
-  const jobs = ["expiry", "notifications", "email", "packs"].map((job) => {
+  const jobs = ["expiry", "notifications", "email", "packs", "retention"].map((job) => {
     const mine = (runs ?? []).filter((r) => r.job === job);
     const lastOk = mine.find((r) => r.outcome === "ok");
     return { job, last: mine[0], lastOk, stale: !lastOk || Date.now() - new Date(lastOk.finished_at!).getTime() > 5 * 60_000 };
@@ -66,6 +68,13 @@ export default async function Operations() {
       {(failedMail ?? []).length === 0 ? <p>None.</p> : (
         <ul>{(failedMail ?? []).map((d) => <li key={d.id}>{new Date(d.created_at).toLocaleString("en-GB")} · {d.channel} · {d.attempts} attempts: {d.last_error}</li>)}</ul>
       )}
+
+      <h2>Disposed files still in storage</h2>
+      <p className="muted">Files whose disposal a venue confirmed (8d). They are no longer released to anyone; the retention job removes them from storage. Paths and contents are not shown here.</p>
+      <p>{removal?.waiting ? `${removal.waiting} waiting to be removed.` : "None waiting."}</p>
+      {removal?.failing?.length ? (
+        <ul>{removal.failing.map((f, i) => <li key={i}>Disposed {new Date(f.since).toLocaleString("en-GB")} · {f.attempts} attempts: {f.last_error}</li>)}</ul>
+      ) : null}
 
       <h2>Malware scanners</h2>
       {(scanners ?? []).length === 0 ? <p>No scanner has reported. That is expected while scanning is off (D-014).</p> : (

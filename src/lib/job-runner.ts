@@ -2,14 +2,16 @@ import "server-only";
 
 // The scheduled job runner (P8-6, D-021). It signs in as the job runner service account, never
 // with the service role key, and each database function checks that account's purpose: expiry,
-// the notification jobs, email delivery, and building requested permit packs (8c). Every run is
-// logged; a failed step is logged and the others still run. Nothing here decides anything
-// (invariant 10).
+// the notification jobs, email delivery, building requested permit packs (8c), and listing records
+// past their retention period and removing disposed files from storage (8d). Every run is logged;
+// a failed step is logged and the others still run. Nothing here decides anything (invariant 10):
+// listing never disposes, and files are removed only after someone confirmed their disposal.
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { publicEnv, serverEnv } from "./env";
 import { sendMail } from "./mail";
 import { buildPacks } from "./packs";
+import { documentsBucket } from "./supabase/storage";
 
 interface Email { delivery_ids: string[]; to: string | null; subject: string; body: string; link: string | null }
 
@@ -49,6 +51,19 @@ async function deliver(db: SupabaseClient, claim: "claim_email_batch" | "claim_d
   return { sent, failed };
 }
 
+// Disposed files (8d): their records were kept and the database refuses to release them; here the
+// stored objects themselves are removed. A file already gone counts as removed.
+async function removeFiles(db: SupabaseClient): Promise<{ removed: number; failed: number }> {
+  const claim = (await rpc(db, "claim_file_removals", { p_limit: 50, p_lease_seconds: 120 })) as { files: Array<{ id: string; bucket: string; storage_path: string }> };
+  let removed = 0, failed = 0;
+  for (const f of claim.files) {
+    const { error } = f.bucket === "documents" ? await documentsBucket().remove([f.storage_path]) : { error: { message: `unknown bucket ${f.bucket}` } };
+    await rpc(db, "record_file_removal", { p_id: f.id, p_ok: !error, p_error: error ? error.message : null });
+    if (error) failed += 1; else removed += 1;
+  }
+  return { removed, failed };
+}
+
 /** One tick of the scheduler. Safe to run as often as it is called. */
 export async function runJobs(): Promise<Record<string, unknown>> {
   const db = await runnerClient();
@@ -68,6 +83,11 @@ export async function runJobs(): Promise<Record<string, unknown>> {
   await step("notifications", async () => (await rpc(db, "run_notification_jobs")) as Record<string, unknown>, false);
   await step("email", async () => ({ ...(await deliver(db, "claim_email_batch")), digests: await deliver(db, "claim_digest_batch") }), true);
   await step("packs", async () => await buildPacks(db), true);
+  await step("retention", async () => {
+    const listed = (await rpc(db, "run_retention_jobs")) as { batches: number; listed: number; held_back: number; hold_reviews: number };
+    const files = await removeFiles(db);
+    return { batches: listed.batches, listed: listed.listed, held_back: listed.held_back, hold_reviews: listed.hold_reviews, files_removed: files.removed, files_failed: files.failed };
+  }, true);
   await db.auth.signOut();
   return out;
 }

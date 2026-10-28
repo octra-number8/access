@@ -540,3 +540,191 @@ Still open from earlier phases, and not blocking phase 8:
 | 8c-3 | External redaction removes contact fields by name, and email addresses and phone numbers from free text, but cannot reliably find home addresses in free text. Accept that, with the cover telling the exporter to review, and omissions available? | **Accept for the pilot**, subject to the privacy adviser (G11, Q214). Pattern-matching addresses would also remove the venue's own address and halls. |
 | 8c-4 | A pack covers the whole job, and the authority must cover the job's Work Approval class and places. Should an evidence officer for one specialist class be able to pack only that permit? | **No, keep whole-job packs.** Insurers and investigators need the job's context; single-permit packs can come later if asked for. |
 | 8c-5 | Corrections are built for frozen permit records only. People's and organisations' details are changed through their own routes, with the old value kept in the restricted audit log, but without a correction record beside them. Build that in 8d? | **Yes, in 8d**, alongside retention, so that a correction and a disposal of personal data follow the same rules. |
+
+---
+
+## 16. Phase 8d: detailed design (approved 28 October 2026, D-022)
+
+§9 and §10 were approved as principles (P8-13, P8-14). Working out the detail turned up one finding that changes what disposal can achieve, so the detail comes back for approval before any of it is built.
+
+### 16.1 Finding: the audit log keeps a full copy of every record
+
+`audit.capture_row` writes every inserted row in full, and the old and new value of every changed column, into the append-only, hash-chained audit log. Only `person_contact` (email, phone) and `person_pass` (secret, token hash) are redacted. Names, free text, answers, notification bodies, document titles and restriction grounds are all copied there permanently.
+
+- **Consequence:** deleting a record under a retention rule would remove it from Octra's screens but not from Octra. Calling that "disposed" would be a success message masking a partial result (CLAUDE.md §12).
+- **Files are different:** evidence files, induction media and packs live in storage, not in the log. Removing a file is real disposal.
+- **CLAUDE.md §3** defines `audit_event` as actor, acting capacity, action, target, timestamp and reason where required. It does not ask for record contents. The full-row copy was a phase 1 choice, not a requirement.
+
+**Proposal [8d-1]:** from this migration on, a row event records:
+- the action, target, actor, capacity and time (unchanged);
+- which columns changed, by name;
+- the reason, from the record's reason columns (accountability; History and packs already read it from here);
+- a SHA-256 of the row's content, keyed with a random value held per record in a separate table. While the record exists, anyone verifying can show it matches what was recorded. Once the record and its key are disposed of, the digest reveals nothing.
+
+Nothing else from the row. The hash chain is unchanged. Pre-pilot data is reset, so no existing log is rewritten.
+
+Effects:
+- **Old values of live records** are no longer recoverable from the log. Where an old value matters, it is kept on purpose in a record of its own, under the same retention as its parent: a correction (8c-5, below) or a version row, as frozen records already are.
+- **Reasons stay in clear.** They are why decisions were made. A restriction's grounds therefore remain in the log; they are already withheld from anyone outside the venue's side.
+
+### 16.2 Retention schedule
+
+- **Per venue** (Q218: the venue is assumed to be controller). A venue configuration document of kind `retention`: drafted and proposed by a tenant administrator, approved or rejected by an appointee holding `retention.approve`, never its author or proposer. The existing configuration routes are reused; only the approving action differs.
+- **Each rule:** a category, a period in whole days (1 to 36,500), and the source or note the venue relies on. The trigger event is fixed per category (Q222) and shown beside it. There is no default and no suggested period; a category without a rule is kept, and the retention page says so (CLAUDE.md §9).
+
+| Category | Trigger (Q222) | What disposal does | Never disposed while |
+|---|---|---|---|
+| Gate scans and entry evaluations | The scan | Deletes them | Named by a kept visit, outage exception or open reconciliation |
+| Offline manifests, manual fallback entries, reconciliation exceptions | The exception resolved, or the manifest's end if none | Deletes them | Any exception is unresolved |
+| Visits (request, roster, consents, attendance and its scans) | The visit's end, or its refusal, withdrawal or cancellation | Deletes them | A linked work request's job is kept |
+| Induction records (attempts, answers, completions) | The completion's expiry or supersession; an unfinished attempt, its last activity | Deletes them | It is the person's current valid completion for the course |
+| Notifications and their email records | Sent | Deletes them | |
+| Evidence files of people and organisations | The version superseded, expired or rejected | Removes the file; the record keeps its type, dates, review decision and hash | Named by an issue snapshot of a kept permit, or the current version |
+| Rejected and infected uploads | The scan or review result | Removes the file; the record and result stay | |
+| Closed jobs (work package, permits, snapshots, controls, custody, packs and their files, the job's own documents) | Every permit on the job closed, cancelled, refused or expired with nothing outstanding, or the job withdrawn | Deletes the whole job, including packs | Any permit is not finished, any control is live, or any continuing isolation is still owned |
+
+Not in this phase:
+- **Appointments.** Every decision names one: they are the authority record. Kept.
+- **People and organisations themselves** (erasure of identity). G11 and Q220.
+- **Job runs.** Platform housekeeping, holding no personal data.
+- **The audit log** (P8-13).
+
+**Customer-wide records [8d-3].** People's and organisations' evidence files belong to the customer, not a venue. Each one is disposed of only when every venue of the customer has a rule for it and every period has passed (the longest wins). Any venue's `retention.dispose` appointee can confirm.
+
+### 16.3 Disposal
+
+- **Listing.** A job (the existing runner) lists, per venue and category, the records past their period and outside every active hold. It makes a proposed **disposal batch**: category, rule version, period, the records' identifiers and a count. It never disposes. Re-running adds nothing already listed.
+- **Holds kept back.** The batch states what each active hold kept back, by matter reference.
+- **Confirmation.** An appointee holding `retention.dispose` reviews the batch and confirms or declines it, with a reason. The rule's approver cannot confirm a batch under their own rule (separation of duties). Platform and tenant administrators cannot confirm (invariant 9).
+- **Rechecked at confirmation.** Each record is checked again: still past its period, still outside every active hold, nothing live. Anything that no longer qualifies is left and listed as such.
+- **How deletion is allowed.** Records are deleted only inside the confirming function. Every core table's delete guard allows a delete only when this transaction holds a confirmed batch that names the row's root record. Any other delete still fails.
+- **What is recorded:** the batch, who confirmed it and in which capacity, the count disposed and kept, and each root record's identifier. Never the content. Files are removed from storage by the job runner after the database commit. A file that fails to delete is retried, and shown on the operations page until it succeeds.
+
+### 16.4 Legal holds (§10, unchanged except as stated)
+
+- **Request** (`legal_hold.request`) and **approval** (`legal_hold.approve`, never the requester), both appointments at the venue.
+- **The hold:** a matter reference, a reason, a required review date, and a scope.
+- **Scope:** any combination of an organisation, a person, a job, a visit and a date range, all of which must match. With none of these, the hold covers the whole venue.
+- **Duration:** active from approval until lifted with a reason. Reaching its review date tells the requester and approver (a routine notice), and the hold continues (invariant 10). Renewing sets a new review date.
+- **Visibility:** the venue's administrators and holders of these actions. Never contractors.
+
+### 16.5 Corrections to live records (8c-5)
+
+- **What it corrects:** a person's name and date of birth, an organisation's name and registration number, or an evidence file's recorded details (issue and expiry dates, reference).
+- **How:** through `api.correct_record`, by a `record.correct` appointee who is neither the person concerned nor whoever recorded the value. The field is changed, and a correction record holds what it said, the correct value, the reason and the evidence.
+- **Retention:** the correction is disposed of with its parent.
+
+### 16.6 Authority, screens and proof
+
+- **New actions:**
+  - `retention.approve` (appointment, through venue configuration);
+  - `retention.dispose`;
+  - `legal_hold.request`, `legal_hold.approve` (appointments, not delegable);
+  - `retention.list` (service, purpose `job_runner`);
+  - `record.correct` reused for live records.
+- **Screens:**
+  - `/venue/retention`: the schedule; categories with no rule; batches to confirm, with what holds kept back.
+  - `/venue/holds`: request, approve, renew and lift.
+  - A correction form on the person, organisation and document pages.
+- **Proof (pgTAP):**
+  - Nothing is listed or disposed of without an approved rule.
+  - A hold blocks disposal, including a hold approved between listing and confirmation.
+  - A requester cannot approve their own hold.
+  - A hold past its review date stays active.
+  - The rule's approver cannot confirm.
+  - Platform and tenant administrators can neither confirm nor approve.
+  - Any other delete still fails.
+  - A live job, live control or current induction is never disposed of.
+  - The audit log holds no content of a disposed record.
+  - Cross-tenant and cross-venue attempts fail.
+- **Mutation testing, the end-to-end suite and the browser,** as in earlier phases.
+
+### 16.7 Decisions for this phase
+
+| # | Question | Recommendation |
+|---|---|---|
+| 8d-1 | Change the audit log, from this migration on, to record actions, actors, columns changed, reasons and a keyed digest, not record contents (16.1)? | **Yes.** Without it, disposal would remove records from view but keep their contents for ever, which is not what Q221, Q222 or Q224 mean by disposal. It matches CLAUDE.md §3's definition, costs nothing pre-pilot, and keeps reasons and the chain. Subject to G11 and the privacy adviser. |
+| 8d-2 | The categories, triggers and disposal methods in 16.2, with appointments, identities, job runs and the audit log kept for now? | **Yes.** It covers the high-volume personal data (gate, visits, inductions, files) and the full job, while keeping the authority record intact. |
+| 8d-3 | A person's or organisation's files disposed of only when every venue of the customer has a rule that has run out? | **Yes.** A venue without a rule keeps the file (no silent default), and a single-venue pilot is unaffected. |
+| 8d-4 | Closed jobs deleted outright, packs included, rather than reduced to a summary? | **Yes.** A summary would itself be personal data with no rule of its own. The disposal batch records that the job existed and when it went. |
+| 8d-5 | Build in two commits: (a) the audit change, schedule, holds, disposal of everything except closed jobs, and live corrections; (b) closed-job disposal, which touches about forty tables? | **Yes.** Each commit is complete and tested on its own. |
+
+The following stay open and are not settled here: P8-16 (who holds these appointments at the pilot venue), G11, and every retention period. These periods are the venue's to set, with its privacy adviser.
+
+---
+
+## 17. As built (phase 8d(a), 28 October 2026)
+
+**Implementation.**
+- **Migrations:**
+  - `supabase/migrations/20261025000058`: the audit log without record contents (8d-1).
+  - `…59`: catalogue, categories, the `retention` schedule, legal holds, disposal batches and items, the record of deleted rows, file disposals and the one exception to the delete guard.
+  - `…60`: the schedule through the configuration routes, holds, the listing job, confirmation, file removal, disposed files refused, live-record corrections, the operations status.
+- **Six new actions** (283 in all):
+  - `retention.approve`, `retention.dispose`, `legal_hold.request`, `legal_hold.approve` (appointment, not delegable);
+  - `retention.list`, `retention.remove_files` (service, the job runner).
+- **Screens:**
+  - `/venue/retention`: schedule, draft and approval, batches to confirm, decided batches.
+  - `/venue/holds`: request, approve or refuse, renew, lift.
+  - Corrections on the organisation page and `/me`.
+  - The operations page watches the "retention" job and disposed files still in storage.
+  - Links from home and venue administration.
+- **Job runner:** a "retention" step lists batches and removes confirmed files from the `documents` bucket.
+
+**Proof.**
+- **pgTAP:** `41_retention` (113 assertions); 1,687 in the whole suite, through both runners (the fallback on a database rebuilt from the migrations, and the Supabase runner).
+- **Mutation testing:** 44 deliberate weakenings, 43 caught. Two were caught only after tests were added (an undecided visit old enough to matter; a current document long expired). The one missed (`d11`, the "current induction" filter) is equivalent: the listing's own period check already excludes a completion that is still valid.
+- **Unit:** 39 passed, with the catalogue test at 283 actions. Typecheck clean. End to end: 7 passed, 1 skipped, as before.
+
+| Area | As built | Note |
+|---|---|---|
+| Audit log (8d-1) | **What a row event records:** the columns set or changed (names only); the record's reason, in clear (from `reason`, `decision_reason`, `lift_reason` and the like); and a SHA-256 of the row keyed with a random 32-byte key held per record in `audit.record_key`. **What it no longer records:** values. **Checking a record:** `audit.record_matches` says whether a record still matches its last event. A change made outside Octra's routes shows as a mismatch (tested). **On disposal:** the key is deleted with the record, so the digest reveals nothing. **Unchanged:** the chain, decision contexts, status history and every other event. History and packs read reasons as before. | Events written before 0058 keep the contents they recorded: pre-pilot data only. |
+| Schedule (Q224, §16.2) | **The document:** venue configuration of kind `retention`, `{rules: {category: {days, basis}}}`, with 1 to 36,500 whole days and what the period is based on. There is no default and no suggested period. **Who:** drafted and proposed by a tenant administrator; approved or rejected by a `retention.approve` appointee, never its author or proposer. The general configuration approver cannot approve it, and nor can any administrator. **The page:** for each category, the trigger, what disposal does, and when a record is never disposed of. A category without a rule reads "No rule: kept". | |
+| Categories (8d-2) | Seven: gate scans and entry checks; offline manifests, fallback entries and reconciliation exceptions; visits; induction records; notifications; earlier evidence files; rejected and infected uploads. The triggers and exclusions are as in §16.2. **Earlier files:** a version is excluded while it is current (even long expired), while a permit version or issue snapshot names it, and while a competency relies on it. Closed jobs follow in 8d(b). | See 8d-9 for manifests. |
+| Customer-wide records (8d-3) | Documents already belong to a venue, so only notices without a venue are customer-wide. Such a notice is listed only when every venue of the customer has a notifications rule, under the longest, in that venue's batch, and that venue's disposal appointees confirm it. | Narrower than §16.2's "any venue's appointee": see 8d-8. |
+| Listing (§16.3) | **What it does:** the job runner lists, per venue and category, the records past their period that no active hold covers, as a proposed batch of up to 2,000. It records how many each hold kept back, by reference and matter, and tells the venue's disposal appointees, except the schedule's approver. **What it never does:** dispose of anything. **Duplicates:** one proposed batch per venue and category; records already proposed, or declined under the same schedule version, are not listed again. **Hold reviews:** an active hold at its review date is notified to its requester and approver, once per review date. | Declined records wait for a new schedule version: see 8d-10. |
+| Confirmation (§16.3, invariant 9) | **Who:** a `retention.dispose` appointee who did not approve the schedule the batch follows. Never a tenant or platform administrator, nor another customer. **The decision:** confirm or decline, with a reason. **The recheck:** at confirmation, every record is checked again against its state, the schedule in force now, and active holds. Anything that no longer qualifies is kept, with the reason (tested for all three). **What is kept:** the batch records how many records were disposed of and how many kept; each item keeps its identifier, trigger and outcome; `core.disposal_row` keeps the identifier of every row deleted. Never content. | |
+| Deletion | **The guard:** `core.forbid_delete` allows a delete only for a row the confirming transaction has itself written to `core.disposal_row` against a confirmed batch. Any other delete still fails, even as the database owner (tested); so does deleting an audit key or a disposal record. **The order:** dependent rows go first (scans with their check, a visit's attendance, consents, roster and the checks recorded against it, an induction's invalidations, attempt, progress and answers, a notice's email records). | |
+| Files | **On confirmation:** a disposed file gets a `file_disposal` record; its document record stays. **Release:** `api.document_access` refuses it ("removed under the venue's retention schedule on …"), and the download route answers 410. **Removal:** the job runner claims removals with a lease, deletes the stored object, and records success or the error for retry. **Visibility:** the operations page shows how many are waiting and why any are failing, without paths. | |
+| Legal holds (Q223, §16.4) | **Request and approval:** requested by a `legal_hold.request` appointee, with matter, reason, a review date after today (venue date) and an optional scope (organisation, person, job, visit, activity period: all must match; none means the whole venue). Approved or refused by a `legal_hold.approve` appointee who did not ask for it. **While in force:** active until lifted with a reason. Renewal sets a new review date, kept as its own record. **Reaching the review date** only notifies; the hold stays in force (tested). **Visibility:** the venue's tenant administrators and holders of the retention and hold actions; never contractors (tested). | |
+| Corrections to live records (8c-5, §16.5) | `api.correct_record` under a `record.correct` appointment at one of the customer's venues. Never by the person concerned, the people of the organisation concerned, or whoever created the record (tested for self). **Person's and organisation's details** (names, company number) are corrected in place, with a correction record keeping what it said. **An evidence file's recorded details** (issuer, reference, dates) are recorded beside the file and never applied. **Visibility:** shown on the organisation page and `/me` to anyone who can see the record. The audit log records which detail changed, not its values. | Documents: see 8d-6 and 8d-7. |
+
+**Proved in the browser and on the local stack.** The set-up script (outside the repository) created Rhona (retention approver), Dev (disposal officer), Holly (hold requester) and Harry (hold approver), had Cara upload a certificate twice, and back-dated a card, a certificate and the notices by 40 days.
+- **The schedule:**
+  - The administrator started a draft. A rule of 0 days with no basis was refused in words, with the form kept.
+  - A schedule of 30 days for notifications and earlier files was saved and proposed; Rhona approved it.
+- **Listing:** the job listed 3 records in 2 batches and disposed of nothing. Cara's first card version was not listed, because the 8c job's permit names it.
+- **Rhona's view:** told that someone else confirms.
+- **Dev's confirmation:**
+  - Dev confirmed both batches: 1 file and 2 notices disposed of.
+  - The next run removed the stored object; the document record stayed, and the job log shows both runs.
+- **Cara's view:**
+  - The old certificate answered 410 with its reason; the current version still downloads.
+  - Retention and holds pages tell her they are for the venue's side.
+- **Holds:** Holly asked for a hold on Cara Electrical; Harry approved it, and it shows as in force with its review date.
+- **Corrections:** Evelyn corrected Cara's family name on the organisation page; it shows with the earlier value. The audit entry holds only the column names and a digest.
+- **Phone width:** the retention and organisation pages read without sideways scrolling.
+
+**Fixed during the build:**
+- **The delete guard:** it compared a bigint identifier with a uuid; it now compares as text.
+- **An expired induction's activity period could run backwards,** which fails as a range; the period is now ordered.
+- **Saving the schedule:** the confirmation vanished because the form remounted; it now stays.
+- **Test 41:** it counted rows across the whole database, so the Supabase runner, which runs against the local stack with demo data, failed two assertions. It now counts only its own records.
+
+**Not covered:**
+- **Closed jobs (8d(b)).**
+- **Induction links** (which hold an email address), invitations, passes and person contact records are not categories yet.
+- **Old files a competency relies on** are kept while the competency exists.
+- **Disposal of a large batch** is not measured; it runs in one transaction of up to 2,000 records.
+- **Records with no venue** other than notices are not handled.
+
+### Decisions raised by the 8d(a) build
+
+| # | Question | Recommendation |
+|---|---|---|
+| 8d-6 | §16.5 said an evidence file's recorded details would be changed. As built, they are recorded beside the file and never applied: a reviewer's decision relied on the details as submitted, and changing an expiry date could extend what the venue accepted without review. The contractor uploads a new version, which is reviewed. Accept? | **Yes.** It keeps invariant 5's intent for reviewed evidence; names and company numbers are still corrected in place. |
+| 8d-7 | `record.correct` appointees cannot see contractors' documents (document visibility is unchanged), so in practice document corrections are recorded by people who can see them, such as a reviewer who also holds `record.correct`. Widen document visibility to correction appointees? | **Not now.** Give the reviewers `record.correct` if the venue wants document corrections; widening access to personal documents is a privacy decision (G11). |
+| 8d-8 | Notices with no venue are disposed of in the batch of the venue with the longest rule, confirmed by that venue's appointees, rather than any venue's. Accept? | **Yes.** One accountable venue per record; it makes no difference for a single-venue pilot. |
+| 8d-9 | An offline manifest lists everyone admissible at that moment, so a hold on any one person keeps the whole manifest. Accept? | **Yes.** A hold should err towards keeping; manifests are small. |
+| 8d-10 | A declined batch's records are not listed again until a new schedule version is approved. Should they come back after a period instead? | **Accept for the pilot.** If venues decline for temporary reasons, add a re-listing interval as venue configuration with no default. |
+| 8d-11 | Before the pilot, should induction links, invitations, passes and contact records become retention categories? | **Yes, with 8d(b)**, as they hold email addresses; each with its own trigger (link expiry or use, invitation decision, pass revocation, relationship end). |

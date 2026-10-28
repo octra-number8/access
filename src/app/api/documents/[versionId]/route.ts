@@ -11,7 +11,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ versionId:
   if (!auth.user) return NextResponse.json({ ok: false, code: "not_authenticated" }, { status: 401 });
   const r = await downloadLink(db, versionId);
   if (!r.ok) {
-    const status = r.code === "not_found" ? 404 : 409;
+    const status = r.code === "not_found" ? 404 : r.code === "disposed" ? 410 : 409;
     return NextResponse.json(r, { status, headers: { "Cache-Control": "no-store" } });
   }
   return NextResponse.redirect(r.url, { status: 303, headers: { "Cache-Control": "no-store" } });

@@ -526,7 +526,7 @@ Still open from earlier phases, and not blocking phase 8:
 - **The external profile's own description** claimed addresses were removed from free text; it now says what is actually done (8c-3).
 
 **Not covered:**
-- **Production font and bundling:** the builder reads Geist from the installed Next.js package at run time. This works locally; on Vercel the file must be included in the function bundle, which is not yet configured or tested. See 8c-2.
+- **Production font and bundling:** the builder reads Geist from the installed Next.js package at run time. This works locally; on Vercel the file must be included in the function bundle, which is not yet configured or tested. See 8c-2. *Settled by D-023: Noto Sans is bundled (§19).*
 - **Corrections to live records** (people, organisations, document details) are not built. See 8c-5.
 - **Scenario 5 end to end over HTTP:** packs are proved in pgTAP and the browser, not yet in the end-to-end suite.
 - **Large packs:** not measured. The builder holds a whole pack in memory, and evidence files are up to 20 MB each.
@@ -782,3 +782,24 @@ The following stay open and are not settled here: P8-16 (who holds these appoint
 | 8d-12 | When a hold keeps back every record due in a category, no batch is made, so the retention page does not say what is being kept or why (only the job log counts it). Show "kept back by holds at the last run" per category? | **Yes, small and worth it before the pilot**, so the disposal officer can see a hold is working. |
 | 8d-13 | A closed job is kept while any isolation linked to it has been removed but not returned to service. Is "returned" the right end point, or does the venue treat "removed" as resolved? | **Keep "returned"**: the isolation's lifecycle is not over until the system is back in service, and the record shows who did that. |
 | 8d-14 | Contact records are not disposed of with anything; they go only when a person's identity is erased. Leave that to the identity and portability work (G11, Q220)? | **Yes.** |
+
+---
+
+## 19. As built: D-023 follow-ups (8a-2, 8c-2, 8d-12)
+
+D-023 accepted the open phase 8 decisions as recommended and asked for three small builds before the pilot.
+
+| Decision | As built | Proved by |
+|---|---|---|
+| 8a-2: critical notices about people without an account | In `core.notify` (migration 0063), so every critical source is covered. A critical notice to someone with no enabled account also goes to the current administrators (accountable and deputy) of each organisation they currently work for. It starts "Sent to you as an administrator of [organisation], because [name] has no Octra account and cannot receive this notice", is itself critical and is always emailed. **Not copied:** routine notices, people with an account, administrators already addressed or excluded (the actor), revoked or deactivated administrators, ended relationships. A copy is never copied on. The person's own notice is still recorded. | pgTAP 43 (28 assertions), including a work stop on a permit whose supervisor has no account. Mutations: 10 of 10 caught. |
+| 8c-2: the PDF font | Noto Sans Regular (SIL Open Font Licence 1.1) in `assets/fonts/` with its licence, read by the pack builder, and included in the bundles of the job tick and the permit pages through `outputFileTracingIncludes`. The dependency on Next.js internals is gone. Only Regular is bundled: the PDF uses no bold. | Unit tests; a production build's traces include the font; a pack built on the local stack embeds `NotoSans-Regular` and renders accented Latin, Greek and Cyrillic names. |
+| 8d-12: what holds keep back | `core.retention_hold_check` (migration 0062): one row per venue and category, giving how many records past their period holds kept back and which holds did so. The job writes it only when the picture changes (it runs every minute), so the page can say since when. A category skipped because a batch is awaiting a decision keeps its last check. The retention page has a "Kept back by legal holds" section. | pgTAP 41 (+13 assertions): counts, holds, no rewrite on an unchanged run, cleared after the hold is lifted, scoped to the venue, contractors see none of it. Mutations: 5 of 5 caught. Seen in the browser: Dev saw "Earlier evidence files: 1 record: 1 by LH-… (DEMO claim 12)". |
+
+**Also added:** a structural test that every foreign key in core is deferrable (0061's premise), so a later table cannot quietly break disposal. The decision context's customer key stays initially deferred, by design since phase 1.
+
+**Fixed during the build:** the first version of 0063 read a relationship column that was renamed in phase 2. It would have made every critical notice fail, and test 43 caught it before it was committed.
+
+**Not covered:**
+- Critical notices to a person who has no account *and* no current organisation still reach nobody but the person's own (unread) record. The venue's direct route still applies, as every critical notice says.
+- The font for scripts beyond Latin, Greek and Cyrillic (for example Arabic or CJK names) is not bundled; such characters show as "?" in the PDF, and pack.json keeps the exact text.
+

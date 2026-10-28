@@ -18,9 +18,10 @@ interface Claimed {
   files: Array<{ version_id: string; storage_path: string; sha256: string; media_type: string; name_in_pack: string }>;
 }
 
-// Geist, as shipped inside Next.js: Latin (with accents), Greek and Cyrillic. Characters it
-// lacks are drawn as "?" in the PDF; pack.json always holds the exact text.
-const FONT = path.join(process.cwd(), "node_modules", "next", "dist", "compiled", "@vercel", "og", "Geist-Regular.ttf");
+// Noto Sans (SIL Open Font Licence, assets/fonts/OFL.txt; 8c-2): Latin (with accents), Greek and
+// Cyrillic. Characters it lacks are drawn as "?" in the PDF; pack.json always holds the exact text.
+// next.config.ts includes the file in the function bundles that build packs.
+const PACK_FONT = path.join(process.cwd(), "assets", "fonts", "NotoSans-Regular.ttf");
 
 async function rpc(db: SupabaseClient, fn: string, args: Record<string, unknown> = {}) {
   const { data, error } = await db.rpc(fn, args);
@@ -58,7 +59,7 @@ export async function buildPacks(db: SupabaseClient): Promise<{ built: number; f
   for (let round = 0; round < 5; round++) {
     const claim = (await rpc(db, "claim_pack_builds", { p_limit: 5, p_lease_seconds: 300 })) as { packs: Claimed[] };
     if (!claim.packs.length) break;
-    font ??= new Uint8Array(await readFile(FONT));
+    font ??= new Uint8Array(await readFile(PACK_FONT));
     for (const p of claim.packs) {
       try {
         await buildOne(db, p, font);

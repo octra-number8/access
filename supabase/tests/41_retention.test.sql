@@ -411,6 +411,28 @@ insert into t_r select 'run_m', api.run_retention_jobs();
 select tests.logout();
 select is(tests.batch('gate_outage'), null, 'the manifest lists Nia, so the hold on her keeps it back too');
 select ok((select (v ->> 'held_back')::int from t_r where name = 'run_m') >= 1, 'and the run counts what holds kept back');
+create function tests.hold_check(p_category text) returns core.retention_hold_check language sql stable security definer as $$
+  select * from core.retention_hold_check where venue_id = tests.w('v1') and category = p_category $$;
+create function tests.kept_back(p_category text) returns jsonb language sql stable as $$
+  select c -> 'kept_back' from jsonb_array_elements(api.retention_overview(tests.w('v1')) -> 'categories') c where c ->> 'code' = p_category $$;
+grant execute on function tests.hold_check(text), tests.kept_back(text) to authenticated;
+select is((tests.hold_check('gate_outage')).held_count, 1, '8d-12: the run records, per category, how many records holds kept back');
+select is((tests.hold_check('gate_outage')).held_back, jsonb_build_array(jsonb_build_object('hold_id', tests.w('lh1'),
+            'reference', (select reference from core.legal_hold where id = tests.w('lh1')), 'matter', 'Claim 42', 'count', 1)),
+  'and which holds, with how many each');
+select is((tests.hold_check('visits')).held_count, 1, 'Nia''s visit is kept back too');
+select is((tests.hold_check('notifications')).held_count, 0, 'a category whose records no hold covers records none');
+insert into t_r select 'hc_visits', to_jsonb((tests.hold_check('visits')).changed_at);
+select tests.login(tests.w('u_dora'));
+select is(tests.kept_back('visits') ->> 'count', '1', 'the retention page shows it to the disposal officer');
+select is(tests.kept_back('visits') -> 'holds' -> 0 ->> 'matter', 'Claim 42', 'with the hold''s matter');
+select is(tests.kept_back('notifications'), 'null'::jsonb, 'and nothing for a category with nothing kept back');
+select tests.login(tests.w('u_a1'));
+select is((select count(*)::int from jsonb_array_elements(api.retention_overview(tests.w('v2')) -> 'categories') c where c -> 'kept_back' <> 'null'::jsonb), 0,
+  'another venue of the customer shows nothing kept back by V1''s holds');
+select tests.login(tests.w('u_op'));
+select is(api.retention_overview(tests.w('v1')) ->> 'code', 'not_found', 'a contractor sees none of it');
+select tests.logout();
 
 -- Inductions: once OP's completion has expired, it is listed with its attempt.
 select tests.raw(format($$update core.induction_completion set completed_at = now() - interval '20 days', valid_until = now() - interval '10 days' where id = %L$$, tests.w('comp_op')));
@@ -434,6 +456,8 @@ select is((select count(*)::int from core.notification where event = 'legal_hold
   'a hold at its review date tells its requester and approver');
 select is((select status from core.legal_hold where id = tests.w('lh1')), 'active', 'and stays in force');
 select is(tests.batch('visits'), null, 'it still keeps Nia''s visit from being listed');
+select is(to_jsonb((tests.hold_check('visits')).changed_at), (select v from t_r where name = 'hc_visits'),
+  'a run that finds the same picture writes nothing (the job runs every minute)');
 select tests.login(tests.w('u_lars'));
 select ok(api.renew_legal_hold(tests.key(), tests.w('lh1'), current_date, 'Still open')::text like '%review date after today%', 'a renewal needs a later date');
 select tests.must(api.renew_legal_hold(tests.key(), tests.w('lh1'), current_date + 60, 'Claim still open'));
@@ -443,6 +467,11 @@ select tests.login(tests.w('u_run'));
 select tests.must(api.run_retention_jobs());
 select tests.logout();
 select is(tests.listed('visits'), array[tests.w('av1')], 'once the hold is lifted, the visit is listed again');
+select is((tests.hold_check('visits')).held_count, 0, 'and nothing is recorded as kept back any more');
+select is((tests.hold_check('visits')).held_back, '[]'::jsonb, 'by any hold');
+select tests.login(tests.w('u_dora'));
+select is(tests.kept_back('visits'), 'null'::jsonb, 'so the page no longer shows it');
+select tests.logout();
 select tests.login(tests.w('u_dora'));
 select tests.must(api.decide_disposal_batch(tests.key(), tests.batch('visits'), tests.version('core.disposal_batch', tests.batch('visits')), 'confirm', 'Past the period'));
 select tests.logout();

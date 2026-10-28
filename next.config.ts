@@ -6,6 +6,12 @@ const config: NextConfig = {
     serverActions: { bodySizeLimit: "21mb" },
   },
   poweredByHeader: false,
+  // The PDF font for permit packs (8c-2), read at run time by the job tick and the permit page's
+  // "make the pack now" action.
+  outputFileTracingIncludes: {
+    "/api/jobs/tick": ["./assets/fonts/**"],
+    "/permits/**": ["./assets/fonts/**"],
+  },
   async headers() {
     return [{
       source: "/:path*",

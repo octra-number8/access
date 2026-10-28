@@ -19,7 +19,7 @@ grant all on t_r to authenticated;
 create function tests.r(p_name text) returns jsonb language sql stable as $$ select v from t_r where name = p_name $$;
 create function tests.pack(p_id uuid) returns core.export language sql stable security definer as $$ select * from core.export where id = p_id $$;
 grant execute on function tests.r(text), tests.pack(uuid) to authenticated;
-create function tests.exports() returns setof core.export language sql stable security definer as $$ select * from core.export $$;
+create function tests.exports() returns setof core.export language sql stable security definer as $$ select * from core.export where venue_id = tests.w('v1') $$;
 create function tests.snapshots() returns setof core.issue_snapshot language sql stable security definer as $$ select * from core.issue_snapshot $$;
 create function tests.person_of(p_user uuid) returns uuid language sql stable security definer as $$
   select person_id from core.user_account where auth_user_id = p_user $$;

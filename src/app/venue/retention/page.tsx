@@ -60,6 +60,7 @@ export default async function Retention({ searchParams }: { searchParams: Promis
   const k = () => randomUUID();
   const proposed = o.batches.filter((b) => b.status === "proposed");
   const decided = o.batches.filter((b) => b.status !== "proposed");
+  const kept = o.categories.filter((c) => c.rule && c.kept_back);
   const draft = o.draft;
   const draftRules = draft?.content.rules ?? {};
 
@@ -174,6 +175,17 @@ export default async function Retention({ searchParams }: { searchParams: Promis
             : <p className="muted">Waiting for someone appointed to confirm disposal.</p>}
         </div>
       ))}
+
+      <h2>Kept back by legal holds</h2>
+      {kept.length === 0 ? <p>Nothing past its period is being kept by a legal hold.</p> : (
+        <>
+          <p className="muted">Records past their period that a legal hold covers are not listed. Checked at every run of the scheduled job; each line shows since when it has been the case.</p>
+          <ul>{kept.map((c) => (
+            <li key={c.code}><strong>{c.name}:</strong> {c.kept_back!.count === 1 ? "1 record" : `${c.kept_back!.count} records`}: {c.kept_back!.holds.map((h) => `${h.count} by ${h.reference} (${h.matter})`).join("; ")}
+              <span className="muted text-sm"> · since {venueTime(c.kept_back!.since, tz)}</span></li>
+          ))}</ul>
+        </>
+      )}
 
       {o.files_waiting > 0 ? <p className="notice">{o.files_waiting === 1 ? "1 disposed file is still to be removed from storage by the scheduled job. It is no longer released to anyone."
         : `${o.files_waiting} disposed files are still to be removed from storage by the scheduled job. They are no longer released to anyone.`}</p> : null}

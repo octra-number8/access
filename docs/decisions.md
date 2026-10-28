@@ -124,6 +124,14 @@ Each entry records what was decided, by whom, and what it changes. Open items ar
 - **Date:** 28 October 2026 · **Decided by:** Wes Pierce
 - [phase-8-design.md](phase-8-design.md) §16 approved with 8d-1 to 8d-5: from migration 0058 the audit log records action, actor, capacity, target, time, the columns changed by name, the reason and a per-record keyed digest, never record contents; disposal categories, triggers and methods as in §16.2, with appointments, identities, job runs and the audit log kept; a person's or organisation's files disposed of only when every venue of the customer has a rule that has run out; closed jobs deleted outright, packs included; built as 8d(a) (audit change, schedule, holds, disposal except closed jobs, live-record corrections) and 8d(b) (closed-job disposal). Settles 8c-5 (live-record corrections in 8d). Every retention period remains the venue's, with no default; G11 and P8-16 remain open.
 
+## D-023 — Phase 8 build decisions settled
+- **Date:** 28 October 2026 · **Decided by:** Wes Pierce
+- [phase-8-design.md](phase-8-design.md) decisions accepted as recommended:
+  - **As built:** 8a-1 (fire watch overdue when arranged but not started once its permit is suspended, in hand-back or expired; validate with the venue, and any time after work stops would be venue configuration with no default); 8a-3 (invitation reminders to the invitation's owner); 8b-1 (two-day venue dashboard for the pilot); 8b-2 (refused hand-back attempts not recorded); 8b-3 (contractors see who recorded a decision, never who could make it); 8c-4 (whole-job packs only); 8d-6 (evidence-file corrections recorded beside the file, never applied); 8d-8 (venue-less notices disposed of with the venue holding the longest rule); 8d-9 (a hold on one person keeps the whole offline manifest); 8d-10 (declined records listed again only under a new schedule version); 8d-11 (induction links, invitations and passes as retention categories, as built in 8d(b)); 8d-13 (a job kept until its isolation is returned to service); 8d-14 (contact records left to identity erasure, G11 and Q220).
+  - **Built before the pilot:** 8a-2 (critical notices about people without an Octra account also go to their organisation's administrators); 8c-2 (Noto Sans, SIL Open Font Licence, bundled with its licence for PDF packs; download approved); 8d-12 (the retention page shows what holds kept back at the last run, per category).
+  - **Interim, subject to the privacy adviser (G11):** 8c-1 (external packs always leave out a person's own documents); 8c-3 (free-text home addresses not pattern-matched; the cover tells the exporter to review); 8d-7 (document visibility not widened to correction appointees).
+- P8-16 and G11 remain open.
+
 ---
 
 ## CLAUDE.md wording — applied 24 October 2026 (approved by Wes Pierce)

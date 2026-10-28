@@ -8,6 +8,8 @@ export const RETENTION_CATEGORIES = [
 export interface RetentionCategory {
   code: string; name: string; trigger: string; method: string; never_while: string;
   rule: { days: number; basis: string } | null;
+  // What legal holds kept back at the last run that changed it (8d-12); absent when nothing.
+  kept_back: { count: number; since: string; holds: Array<{ hold_id: string; reference: string; matter: string; count: number }> } | null;
 }
 
 export interface DisposalBatch {

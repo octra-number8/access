@@ -4,7 +4,7 @@ import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { assemblePack, type PackContent, readable, renderPackPdf, sha256Hex } from "./pack-format";
 
-const font = new Uint8Array(readFileSync("node_modules/next/dist/compiled/@vercel/og/Geist-Regular.ttf"));
+const font = new Uint8Array(readFileSync("assets/fonts/NotoSans-Regular.ttf"));
 const IVY = "11111111-1111-4111-8111-111111111111";
 const APPT = "22222222-2222-4222-8222-222222222222";
 

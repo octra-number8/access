@@ -140,6 +140,29 @@ Each entry records what was decided, by whom, and what it changes. Open items ar
   - **Built before the pilot:** 7d-2 (the gate page works after a reload during an outage); 7d-3 (gate devices refresh their manifest automatically while online, at an interval the venue sets with no default; manual until set).
 - 6c-1, P7-14, E1, N1 and N2 remain open.
 
+## D-025 — Earlier open items settled (G10, E2, E3, P4, P5, P7)
+- **Date:** 28 October 2026 · **Decided by:** Wes Pierce
+- Accepted as recommended:
+  - **Closed, built or replaced:** E3 (built in phase 3b-2, phase-3-design.md §13); P5 (replaced by D-020's 7d and D-024's 7d-2 and 7d-3; a fully offline app is not planned and is reopened only if pilot gate testing shows a need).
+  - **Deferred with a trigger:** E2 folds into D-014. When scanning is switched on, the scanner runs on AWS Fargate London as designed in D-013.
+  - **Built:** P4, a read-only venue set-up page. Each item's state is computed from the records ("Not set up", "Draft awaiting approval", "In force from [date]"), with its owner and a link to the screen that sets it. Nothing can be ticked by hand, and there is no percentage or progress bar. It supports Q20–Q22 and is the go-live checklist that 6d-1 refers to.
+  - **Outside the build:** G10, which the founders settle in writing before the pilot, recording the outcome here. P7 is reframed as a pilot rehearsal with venue staff: the Q22 set-up workshop followed by Q231's five scenarios, with the set-up page as the agenda. It depends on P7-14 and P8-16.
+- 6c-1, P7-14, P8-16, E1, N1, N2, G10 and G11 remain open.
+- **As built (P4):**
+  - Migration `20261025000065_venue_setup` adds `api.venue_setup(venue)`. It is read-only (stable) and readable by the venue's tenant administrators and anyone holding a current appointment there. Platform administrators, contractors and other customers get `not_found`.
+  - Items:
+    - **Authority:** root appointment (every root in force is listed, and an unfinished ceremony says who must act next), appointment types.
+    - **Places and systems:** areas, building systems.
+    - **Work and permits:** working calendar, work types, activity screening, the Work Approval and each permit class (deferred specialist classes are excluded), isolation and impairment rules for each system type with registered systems, emergency work categories, emergency contacts.
+    - **Inductions:** each course.
+    - **Gate and visits:** entry rules, gate points, outage procedure, access visit purposes.
+    - **Notices and records:** reminders and escalation, retention schedule.
+  - States are words: Not set up, Draft (not yet proposed), Awaiting approval, Published (not yet in force), In force, Recorded. A newer draft or proposal beside a version in force is shown as pending.
+  - "Appointed for this" names come from `core.action_holders` with a venue-wide target, so an appointee scoped to one hall is not named.
+  - Page: `/venue/setup`, linked from Venue administration. It shows "Still to do" first, then each section. On a phone each row becomes labelled blocks.
+  - Proof: pgTAP `44_venue_setup` (79 assertions); 10 of 10 deliberate weakenings caught; browser check as the demo venue administrator, desktop and 375 px.
+  - **Found while building:** the root appointment, ordinary appointments, delegations, areas, area kinds, system types, systems, system ownership, events, document types, review criteria and evidence requirements have an API but no screen; only the seed script has created them. The set-up page says "No screen yet" for these instead of linking nowhere.
+
 ---
 
 ## CLAUDE.md wording — applied 24 October 2026 (approved by Wes Pierce)
@@ -169,7 +192,7 @@ repository CLAUDE.md is the controlling version.
 
 | Ref | Question | Recommendation | What the source says |
 |---|---|---|---|
-| G10 | Product owner versus both founders. | Settle in writing between founders. | Q235 raises the same point. |
+| G10 | Product owner versus both founders. | Settle in writing between founders before the pilot (D-025). | Q235 raises the same point. |
 | G11 | Privacy controller/processor split. | Qualified privacy advice before any pilot data. | Q218, Q224. |
 
 ## Open — raised by the phase 1 build (see foundations-schema.md §14)
@@ -191,8 +214,6 @@ repository CLAUDE.md is the controlling version.
 | Ref | Question | Recommendation |
 |---|---|---|
 | E1 | Production email: invitations are sent by the app over SMTP, and Supabase Auth sends sign-in codes. Supabase's built-in mail is not for production. | One UK/EU-hosted SMTP provider for both (configured in Supabase Auth and the app), with SPF/DKIM on an Octra sending domain. Choose before the pilot. |
-| E2 | Hosting for the scanner, when scanning is switched on (D-014). | AWS Fargate London (D-013) or Fly.io London; decide when scanning is needed. |
-| E3 | Screens for the remaining phase 2 actions (see phase-2-design.md §12). | Build them alongside phase 3 (inductions), where operatives and contractor administrators first need them. |
 
 ## Open — raised by the phase 3a build (see phase-3-design.md §11)
 
@@ -211,8 +232,6 @@ repository CLAUDE.md is the controlling version.
 
 | Ref | Question | Recommendation |
 |---|---|---|
-| P4 | Configuration with no silent default blocks onboarding. | Configuration-completeness view and onboarding checklist in phase 1 (supports Q20–Q22). |
-| P5 | Offline gate scope. | Pilot: manual fallback log plus read-only, age-warned manifest and reconciliation; full offline PWA later (Q198–Q203). |
-| P7 | Long gap before users see anything. | Put pilot workflow 1 in front of venue staff at the end of phase 3. |
+| P7 (reframed by D-025) | Venue staff have not yet used the product. | Pilot rehearsal: the Q22 set-up workshop, then Q231's five scenarios, with the venue set-up page as the agenda. Needs P7-14 and P8-16. |
 | N1 | **Lifting and rigging are deferred, but rigging over halls is routine at exhibition venues.** | Confirm the pilot estate's routine rigging volume. Q232's own risk note says that if a deferred control is routine for the first estate, validate it before launch or narrow the pilot. Q167–168 and Q183–184 overlap with event builds. |
 | N2 | Answers relying on earlier Olympia/OES material. | Obtain the controlled source set listed in Q234 before configuring notice periods (Q84–90), urgent work (Q92, Q97) and review (Q17, Q70). |

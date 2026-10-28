@@ -55,7 +55,7 @@ export default async function Venue() {
     <>
       <h1>Venue administration</h1>
       <p className="muted">Administration records information. It does not authorise any work (invariant 9).</p>
-      <p><Link href="/venue/screening">Activity screening, permit classes and work types</Link> · <Link href="/venue/permits">Permit set-up</Link> · <Link href="/jobs">Jobs</Link> · <Link href="/venue/retention">Retention and disposal</Link> · <Link href="/venue/holds">Legal holds</Link></p>
+      <p><Link href="/venue/setup">Set-up</Link> · <Link href="/venue/screening">Activity screening, permit classes and work types</Link> · <Link href="/venue/permits">Permit set-up</Link> · <Link href="/jobs">Jobs</Link> · <Link href="/venue/retention">Retention and disposal</Link> · <Link href="/venue/holds">Legal holds</Link></p>
 
       {pending.length > 0 ? (
         <>

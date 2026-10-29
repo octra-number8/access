@@ -58,11 +58,12 @@ select ok(not has_function_privilege('authenticated', 'core.setup_item(core.venu
   'nor call its helpers directly');
 
 -- An empty venue ------------------------------------------------------------------------------
-select is((select count(*)::int from jsonb_array_elements(tests.setup(tests.w('u_a1'), tests.w('v2')) -> 'items') x where x ->> 'state' <> 'not_set_up'), 0,
-  'on a venue with nothing set up, every item says Not set up');
+select is((select count(*)::int from jsonb_array_elements(tests.setup(tests.w('u_a1'), tests.w('v2')) -> 'items') x
+             where x ->> 'state' <> case x ->> 'key' when 'evidence' then 'none_defined' else 'not_set_up' end), 0,
+  'on a venue with nothing set up, every item says Not set up, except evidence requirements, which say None defined (S1-10)');
 select is((select array_agg(x ->> 'key' order by x ->> 'key') from jsonb_array_elements(tests.setup(tests.w('u_a1'), tests.w('v2')) -> 'items') x),
   array['access_purposes', 'appointment_types', 'areas', 'calendar', 'chasing', 'class:work_approval', 'courses', 'emergency_config',
-        'emergency_contacts', 'entry_rules', 'gate_points', 'outage_procedure', 'retention', 'root_appointment', 'screening', 'systems', 'work_types'],
+        'emergency_contacts', 'entry_rules', 'evidence', 'gate_points', 'outage_procedure', 'retention', 'root_appointment', 'screening', 'systems', 'work_types'],
   'and lists every piece the venue must set up');
 select is((select count(*)::int from jsonb_array_elements(tests.setup(tests.w('u_a1'), tests.w('v2')) -> 'items') x where x ->> 'state_words' = 'Not set up'), 17,
   'in words');

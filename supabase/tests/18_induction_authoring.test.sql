@@ -123,7 +123,7 @@ select is(api.add_event_phase(tests.key(), tests.w('ev'), 'build', now() + inter
   'true', 'an event has build, live and breakdown phases');
 select throws_ok(format($$select api.add_event_phase(%L, %L, 'build', now() + interval '32 days', now() + interval '34 days')$$,
                         tests.key(), tests.w('ev')),
-  '23P01', null, 'phases of the same kind cannot overlap');
+  '22023', 'this event already has a build phase at those times', 'phases of the same kind cannot overlap');
 select is(api.create_induction_course(tests.key(), tests.w('v1'), 'EXPO', 'Expo 2027 induction', 'Everyone on the Expo build', tests.w('ev')) ->> 'ok',
   'true', 'a course can belong to an event');
 select tests.logout();

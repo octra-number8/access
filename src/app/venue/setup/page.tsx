@@ -6,7 +6,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 
 export const metadata = { title: "Venue set-up" };
 
-type SetupState = "not_set_up" | "draft" | "proposed" | "scheduled" | "in_force" | "recorded";
+type SetupState = "not_set_up" | "draft" | "proposed" | "scheduled" | "in_force" | "recorded" | "none_defined";
 
 interface SetupItem {
   key: string; section: string; name: string; needed_for: string; state: SetupState; state_words: string;

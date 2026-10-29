@@ -255,3 +255,34 @@ Desktop is the main layout (administrators and appointees), but every screen wor
 - Retiring a gate point has no checks of its own: devices set up for it simply stop being able to record entry there.
 - After a successful action, a form that disappears takes its success message with it (the known 2b feedback gap), for example when ending an ownership record.
 
+
+---
+
+## 15. As built (S1c, 29 October 2026)
+
+**Built**
+- Migration `20261025000068_events_and_evidence`:
+  - An event phase must fall within its event's dates (§8 said so; nothing checked it). A trigger refuses it on any path; `api.add_event_phase` refuses it in words first.
+  - Events and phases must have some length: equal start and end passed the existing checks.
+  - Refusals in words, instead of a constraint error, for an event or phase ending before it starts, two phases of the same kind overlapping, and a code already used by an event, document type or evidence requirement. Asking an organisation for a competency is refused in words ("organisations hold documents, not competencies").
+  - Review criteria: each criterion needs a code and a label that are not blank, and codes are distinct within a version. A reviewer records one result per code, so a repeated code made the results ambiguous.
+  - Reads `api.events_overview(venue)` and `api.evidence_settings(venue)`. Both are readable by the venue's tenant administrators and appointees; only administrators are offered changes. The evidence read offers, as owners of a published version, the customer's current tenant administrators and the venue's appointees in force.
+  - Set-up page (S1-10): an "Evidence requirements" item in a new "Organisations and evidence" section. With none in force it says **None defined**, a recorded state of its own, not an open item. It lists document types with no review criteria in force, because their documents cannot be reviewed.
+  - No new catalogue actions: these are existing tenant administration actions.
+- Screen `/venue/events`: current and coming events with their phases, how many jobs and induction courses refer to each, add a phase, create an event; past events collapsed.
+- Screen `/venue/evidence`: evidence requirements with their versions (publish a version putting one in or out of force, with owner, date and reason), define a requirement; document types with the criteria in force and other versions, publish criteria (one per line, pre-filled from the latest version), add a document type; competency types (moved here from `/venue`).
+- Both linked from Venue administration.
+
+**Tested**
+- pgTAP `47_events_and_evidence` (60 assertions): who may create events, phases, document types, criteria, requirements and versions (platform administrator, appointee and other customer refused); phases outside the event, overlapping, or with no length; codes reused; replays; direct writes refused by the database; criteria with repeated codes or blank labels; asking an organisation for a competency or a person's document; a requirement with no version, then in force, then with a later version; the engagement evidence check following them; the set-up item in each state; the reads by role.
+- 17 of 17 deliberate weakenings caught.
+- Tests 18 and 44 updated: overlapping phases are now refused in words, and the set-up page has the new item.
+- Full suite on the test runner: 2,055 assertions, 0 failures. Unit tests: 39. Type check passes.
+- Browser walk-through on the production build as a tenant administrator on the rehearsal venue: add a document type (a repeated code refused in words); publish criteria (two identical lines refused in words, then three criteria published); define a requirement for performing contractors and put it in force; add a competency type; asking service providers for it is refused in words; create an event with build, live and breakdown phases (a breakdown past the event's end, an overlapping build and an end before a start each refused in words). The set-up page shows the requirement in force; on the demo venue it names the "Skills card" document type as having no criteria in force. As the root appointee both screens are read-only. Checked at 375 px.
+
+**Not built here, or limits**
+- Events cannot be renamed, re-dated or cancelled on screen, and phases cannot be removed. Dates are fixed because what refers to them relies on them (the notice on the screen says to create the event again).
+- Document types and competency types cannot be retired; a requirement is withdrawn by publishing a version that is not in force.
+- A version's effective date may be in the past (the API has always allowed it). It does not change past decisions, which record the version they used; the screen defaults to "now".
+- Criteria codes are made from each line's wording, so rewording a criterion gives it a new code in the next version.
+- After a successful action, a form that disappears takes its success message with it (the known 2b feedback gap).

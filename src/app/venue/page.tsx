@@ -7,7 +7,7 @@ import { date } from "@/lib/labels";
 import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 import { inviteOrganisation } from "../actions";
-import { cancelInvitation, createAppointmentType, createCompetencyType, proposeTypeVersion, resolveMatch } from "../admin-actions";
+import { cancelInvitation, createAppointmentType, proposeTypeVersion, resolveMatch } from "../admin-actions";
 
 const TYPE_STATE: Record<string, string> = {
   proposed: "proposed, waiting for a root appointee",
@@ -22,7 +22,7 @@ export default async function Venue() {
     return <p>Venue administration is available to tenant administrators only.</p>;
   }
   const db = await supabaseServer();
-  const [venues, capacities, me, invitations, engagements, orgs, compTypes, apptTypes, typeVersions, actions, roots] = await Promise.all([
+  const [venues, capacities, me, invitations, engagements, orgs, apptTypes, typeVersions, actions, roots] = await Promise.all([
     db.from("venue").select("id, name, customer_id").in("customer_id", session.tenantAdminCustomerIds),
     db.from("engagement_capacity").select("code, label"),
     db.from("person").select("id, customer_id").in("id", session.personIds),
@@ -30,7 +30,6 @@ export default async function Venue() {
       .eq("kind", "organisation").order("created_at", { ascending: false }),
     db.from("engagement").select("id, organisation_id, capacity_code, status, valid_during, venue_id").order("created_at", { ascending: false }),
     db.from("organisation").select("id, legal_name").order("legal_name"),
-    db.from("competency_type").select("id, venue_id, code, label").is("retired_at", null).order("label"),
     db.from("appointment_type").select("id, venue_id, code, name").is("retired_at", null).order("name"),
     db.from("appointment_type_version").select("id, appointment_type_id, version_no, status, allowed_action_codes, is_root_eligible, effective_from, decision_reason").order("version_no", { ascending: false }),
     db.from("authority_action").select("code, description").eq("basis", "appointment").order("code"),
@@ -55,7 +54,7 @@ export default async function Venue() {
     <>
       <h1>Venue administration</h1>
       <p className="muted">Administration records information. It does not authorise any work (invariant 9).</p>
-      <p><Link href="/venue/setup">Set-up</Link> · <Link href="/venue/authority">Authority</Link> · <Link href="/venue/places">Places and systems</Link> · <Link href="/venue/screening">Activity screening, permit classes and work types</Link> · <Link href="/venue/permits">Permit set-up</Link> · <Link href="/jobs">Jobs</Link> · <Link href="/venue/retention">Retention and disposal</Link> · <Link href="/venue/holds">Legal holds</Link></p>
+      <p><Link href="/venue/setup">Set-up</Link> · <Link href="/venue/authority">Authority</Link> · <Link href="/venue/places">Places and systems</Link> · <Link href="/venue/events">Events</Link> · <Link href="/venue/evidence">Evidence settings</Link> · <Link href="/venue/screening">Activity screening, permit classes and work types</Link> · <Link href="/venue/permits">Permit set-up</Link> · <Link href="/jobs">Jobs</Link> · <Link href="/venue/retention">Retention and disposal</Link> · <Link href="/venue/holds">Legal holds</Link></p>
 
       {pending.length > 0 ? (
         <>
@@ -131,14 +130,7 @@ export default async function Venue() {
       ))}
 
       <h2>Competency types</h2>
-      <p className="muted">The cards and qualifications people can declare here, for example CSCS or IPAF. Checking them is a separate act by an appointed person.</p>
-      {(compTypes.data ?? []).length === 0 ? <p>None yet.</p> : <ul>{(compTypes.data ?? []).map((t) => <li key={t.id}>{t.label} <span className="muted">({t.code})</span></li>)}</ul>}
-      <ActionForm action={createCompetencyType} what="Adding this competency type" submitLabel="Add competency type">
-        <input type="hidden" name="key" value={k()} />
-        {venueField}
-        <label>Short code (letters, digits, hyphens)<input name="code" required pattern="[A-Za-z0-9-]+" /></label>
-        <label>Name<input name="label" required placeholder="e.g. IPAF 3a/3b" /></label>
-      </ActionForm>
+      <p className="muted">Competency types are now on the <Link href="/venue/evidence">Evidence settings</Link> page, with document types, review criteria and evidence requirements.</p>
 
       <h2>Appointment types</h2>
       <p className="muted">What an appointment of each type allows. A new version takes effect only when a root appointee approves it (D-011).</p>

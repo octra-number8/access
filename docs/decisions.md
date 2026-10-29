@@ -181,6 +181,14 @@ Each entry records what was decided, by whom, and what it changes. Open items ar
 - **As built (S1a):** see set-up-screens-design.md §13. Migration `20261025000066`, screens `/venue/authority`, `/me` (Your appointments) and `/appointments/[id]`; pgTAP `45_people_and_authority`.
 - **As built (S1b):** see set-up-screens-design.md §14. Migration `20261025000067`, screen `/venue/places`, gate point retirement on `/venue/entry`; pgTAP `46_places_and_systems`. The retirement checks are slightly stricter than §6 and §7 listed (any appointment or delegation scope naming the area, as 0008 already refused; access visits, restriction windows and keys or passes also block); confirmed 29 October 2026 (§14).
 - **As built (S1c):** see set-up-screens-design.md §15. Migration `20261025000068`, screens `/venue/events` and `/venue/evidence` (competency types moved there from `/venue`); pgTAP `47_events_and_evidence`. Adds checks the design assumed but nothing enforced: a phase within its event's dates, events and phases with some length, distinct review criteria codes. Evidence requirements appear on the set-up page with a new "None defined" state (S1-10).
+
+## D-027 — A root appointment must leave the venue able to approve appointment types (T-1)
+
+Approved 29 October 2026.
+- Recording a root appointment is refused if its type version does not allow `appointment_type.approve` and no other root appointment in force at the venue does. Without this, a venue could be left unable ever to change its appointment types, because direct publication ends with the first root appointment (D-011) and approval comes only from an appointment.
+- Enforced by a trigger on `core.appointment` (migration `20261025000070`), so it holds on every path. It refuses a record; it never grants an action, so administration still grants no authority (invariant 9). Existing appointments are untouched.
+- The rehearsal venue already has this problem. Rather than adding a recovery route, a fresh venue is set up with the venue creation screen.
+- Built with the platform set-up gaps: see set-up-screens-design.md §16 (migration `20261025000069`, pgTAP `48_venue_and_type_setup`).
 ---
 
 ## CLAUDE.md wording — applied 24 October 2026 (approved by Wes Pierce)

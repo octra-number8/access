@@ -28,20 +28,25 @@ export default async function Review() {
     db.from("course_version").select("id, course_id, version_no").eq("status", "in_review"),
     db.from("induction_course").select("id, title"),
   ]);
-  const [comps, checks, compTypes, typeVersions, apptTypes, restrictions, venues, people] = await Promise.all([
+  const [comps, checks, compTypes, typeVersions, apptTypes, restrictions, venues, people, classes, sysTypes] = await Promise.all([
     db.from("competency").select("id, person_id, venue_id, competency_type_id, issuer, number, expires_on, document_version_id"),
     db.from("competency_verification").select("competency_id"),
     db.from("competency_type").select("id, label"),
-    db.from("appointment_type_version").select("id, appointment_type_id, version_no, allowed_action_codes, is_root_eligible, requires_competence_evidence, effective_from, change_reason, row_version").eq("status", "proposed"),
+    db.from("appointment_type_version").select("id, appointment_type_id, version_no, allowed_action_codes, eligible_permit_class_ids, eligible_system_type_ids, grantable_type_ids, is_root_eligible, requires_competence_evidence, effective_from, change_reason, row_version").eq("status", "proposed"),
     db.from("appointment_type").select("id, name"),
     db.from("restriction").select("id, venue_id, subject_kind, person_id, organisation_id, reason, created_at, row_version").eq("status", "active"),
     db.from("venue").select("id, name").in("id", session.appointmentVenueIds),
     db.from("person").select("id, given_name, family_name").order("family_name"),
+    db.from("permit_class").select("id, name"),
+    db.from("system_type").select("id, label"),
   ]);
   const checked = new Set((checks.data ?? []).map((c) => c.competency_id));
   const toVerify = (comps.data ?? []).filter((c) => !checked.has(c.id));
   const compLabel = new Map((compTypes.data ?? []).map((t) => [t.id, t.label]));
   const typeName = new Map((apptTypes.data ?? []).map((t) => [t.id, t.name]));
+  const className = new Map((classes.data ?? []).map((c) => [c.id, c.name]));
+  const sysTypeName = new Map((sysTypes.data ?? []).map((t) => [t.id, t.label]));
+  const names = (ids: string[], from: Map<string, string>) => ids.length ? ids.map((id) => from.get(id) ?? "a record you cannot see").join(", ") : "none";
   const personName = new Map((people.data ?? []).map((p) => [p.id, `${p.given_name} ${p.family_name}`]));
   const venueName = new Map((venues.data ?? []).map((v) => [v.id, v.name]));
   const k = () => randomUUID();
@@ -160,6 +165,8 @@ export default async function Review() {
           <p><strong>{typeName.get(v.appointment_type_id) ?? "Appointment type"}</strong> — version {v.version_no}, from {date(v.effective_from)}</p>
           <p>{v.allowed_action_codes.length === 0 ? "Allows no actions." : `Allows: ${v.allowed_action_codes.join(", ")}.`}
             {v.is_root_eligible ? " Can be a root appointment." : ""}{v.requires_competence_evidence ? " Needs competence evidence." : ""}</p>
+          <p>Permit classes it may cover: {names(v.eligible_permit_class_ids, className)}. System types: {names(v.eligible_system_type_ids, sysTypeName)}.
+            {" "}May appoint: {names(v.grantable_type_ids, typeName)}.</p>
           <p className="muted">Reason given: {v.change_reason}</p>
           <ActionForm action={decideTypeVersion} what="Approving this version" submitLabel="Approve">
             <input type="hidden" name="key" value={k()} />

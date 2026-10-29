@@ -125,7 +125,7 @@ select is((select count(*)::int from tests.exports()), 0, 'no refused request le
 select tests.login(tests.w('u_a1'));
 select tests.set_w('t_ev2', tests.must(api.create_appointment_type(tests.key(), tests.w('v2'), 'EV', 'Evidence Officer')));
 -- No root appointee there yet, so the tenant administrator publishes the first version (D-002 set-up).
-select tests.set_w('tv_ev2', tests.must(api.publish_appointment_type_version(tests.key(), tests.w('t_ev2'), array['evidence.export'], '{}', '{}', '{}',
+select tests.set_w('tv_ev2', tests.must(api.publish_appointment_type_version(tests.key(), tests.w('t_ev2'), array['evidence.export', 'appointment_type.approve'], '{}', '{}', '{}',
   true, false, tests.w('p_a1'), now() - interval '1 minute', 'Evidence Officer')));
 select tests.set_w('u_vera', tests.new_user('vera@a.test'));
 select tests.login(tests.w('u_a1'));

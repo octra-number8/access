@@ -82,7 +82,7 @@ select is(tests.item(tests.w('u_a1'), tests.w('v1'), 'appointment_types') ->> 'd
 -- The ceremony at V2, step by step (D-002, D-009).
 select tests.login(tests.w('u_a1'));
 select tests.set_w('t2', tests.must(api.create_appointment_type(tests.key(), tests.w('v2'), 'ROOT', 'Authorising Engineer')));
-select tests.set_w('tv2', tests.must(api.publish_appointment_type_version(tests.key(), tests.w('t2'), array['appointment.grant'], '{}', '{}', '{}',
+select tests.set_w('tv2', tests.must(api.publish_appointment_type_version(tests.key(), tests.w('t2'), array['appointment.grant', 'appointment_type.approve'], '{}', '{}', '{}',
   true, false, tests.w('p_a1'), now() - interval '1 day', 'Initial set-up')));
 select tests.logout();
 select is(tests.state(tests.w('v2'), 'appointment_types'), 'recorded', 'a published type is recorded');

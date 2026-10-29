@@ -7,7 +7,7 @@ import { date } from "@/lib/labels";
 import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 import { inviteOrganisation } from "../actions";
-import { cancelInvitation, createAppointmentType, proposeTypeVersion, resolveMatch } from "../admin-actions";
+import { cancelInvitation, createAppointmentType, createVenue, proposeTypeVersion, resolveMatch } from "../admin-actions";
 
 const TYPE_STATE: Record<string, string> = {
   proposed: "proposed, waiting for a root appointee",
@@ -22,7 +22,7 @@ export default async function Venue() {
     return <p>Venue administration is available to tenant administrators only.</p>;
   }
   const db = await supabaseServer();
-  const [venues, capacities, me, invitations, engagements, orgs, apptTypes, typeVersions, actions, roots] = await Promise.all([
+  const [venues, capacities, me, invitations, engagements, orgs, apptTypes, typeVersions, actions, roots, customers, classes, sysTypes] = await Promise.all([
     db.from("venue").select("id, name, customer_id").in("customer_id", session.tenantAdminCustomerIds),
     db.from("engagement_capacity").select("code, label"),
     db.from("person").select("id, customer_id").in("id", session.personIds),
@@ -31,9 +31,12 @@ export default async function Venue() {
     db.from("engagement").select("id, organisation_id, capacity_code, status, valid_during, venue_id").order("created_at", { ascending: false }),
     db.from("organisation").select("id, legal_name").order("legal_name"),
     db.from("appointment_type").select("id, venue_id, code, name").is("retired_at", null).order("name"),
-    db.from("appointment_type_version").select("id, appointment_type_id, version_no, status, allowed_action_codes, is_root_eligible, effective_from, decision_reason").order("version_no", { ascending: false }),
+    db.from("appointment_type_version").select("id, appointment_type_id, version_no, status, allowed_action_codes, eligible_permit_class_ids, eligible_system_type_ids, grantable_type_ids, is_root_eligible, requires_competence_evidence, effective_from, decision_reason").order("version_no", { ascending: false }),
     db.from("authority_action").select("code, description").eq("basis", "appointment").order("code"),
     db.from("appointment").select("venue_id").eq("is_root", true).neq("status", "revoked"),
+    db.from("customer").select("id, name").in("id", session.tenantAdminCustomerIds).order("name"),
+    db.from("permit_class").select("id, venue_id, name").is("retired_at", null).order("name"),
+    db.from("system_type").select("id, venue_id, label").is("retired_at", null).order("label"),
   ]);
   const orgName = new Map((orgs.data ?? []).map((o) => [o.id, o.legal_name]));
   const evidence = await Promise.all(
@@ -49,12 +52,36 @@ export default async function Venue() {
   const today = new Date().toISOString().slice(0, 10);
   const k = () => randomUUID();
   const pending = (invitations.data ?? []).filter((i) => i.status === "awaiting_match");
+  const className = new Map((classes.data ?? []).map((c) => [c.id, c.name]));
+  const sysTypeName = new Map((sysTypes.data ?? []).map((t) => [t.id, t.label]));
+  const typeName = new Map((apptTypes.data ?? []).map((t) => [t.id, t.name]));
+  const names = (ids: string[], from: Map<string, string>) => ids.map((id) => from.get(id) ?? "a retired record").join(", ");
+  const timezones = Intl.supportedValuesOf("timeZone");
+  const customerList = customers.data ?? [];
+  const venueName = new Map(venueList.map((v) => [v.id, v.name]));
 
   return (
     <>
       <h1>Venue administration</h1>
       <p className="muted">Administration records information. It does not authorise any work (invariant 9).</p>
       <p><Link href="/venue/setup">Set-up</Link> · <Link href="/venue/authority">Authority</Link> · <Link href="/venue/places">Places and systems</Link> · <Link href="/venue/events">Events</Link> · <Link href="/venue/evidence">Evidence settings</Link> · <Link href="/venue/screening">Activity screening, permit classes and work types</Link> · <Link href="/venue/permits">Permit set-up</Link> · <Link href="/jobs">Jobs</Link> · <Link href="/venue/retention">Retention and disposal</Link> · <Link href="/venue/holds">Legal holds</Link></p>
+
+      <details className="panel" style={{ maxWidth: "none" }}><summary><strong>Create a venue</strong></summary>
+        <ActionForm action={createVenue} what="Creating the venue" submitLabel="Create venue">
+          <input type="hidden" name="key" value={k()} />
+          {customerList.length === 1 ? <input type="hidden" name="customer_id" value={customerList[0]!.id} /> : (
+            <label>Customer<select name="customer_id" required defaultValue="">
+              <option value="" disabled>Choose</option>
+              {customerList.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+          )}
+          <label>Name<input name="name" required maxLength={200} placeholder="For example: Riverside Exhibition Centre" /></label>
+          <label>Code<input name="code" required pattern="[A-Za-z0-9_\-]{1,40}" maxLength={40} aria-describedby="code-venue" /></label>
+          <p id="code-venue" className="muted text-sm m-0">Letters, numbers, - and _ only, up to 40 characters. It cannot be changed later.</p>
+          <label>Time zone<select name="timezone" required defaultValue="Europe/London">
+            {timezones.map((z) => <option key={z} value={z}>{z}</option>)}</select></label>
+          <p className="muted text-sm m-0">The venue starts with one area, the whole site, and nothing else: no appointments, rules or settings. Its set-up page lists what it needs. Creating it gives you no authority there; that comes only from appointments.</p>
+        </ActionForm>
+      </details>
 
       {pending.length > 0 ? (
         <>
@@ -138,16 +165,18 @@ export default async function Venue() {
         const versions = (typeVersions.data ?? []).filter((v) => v.appointment_type_id === t.id);
         return (
           <div className="panel" key={t.id}>
-            <p><strong>{t.name}</strong> <span className="muted">({t.code})</span></p>
+            <p><strong>{t.name}</strong> <span className="muted">({t.code}){oneVenue ? "" : ` · ${venueName.get(t.venue_id) ?? "another venue"}`}</span></p>
             {versions.length === 0 ? <p>No versions yet.</p> : (
               <ul>{versions.map((v) => (
                 <li key={v.id}>Version {v.version_no} — {TYPE_STATE[v.status] ?? v.status}, from {date(v.effective_from)}
-                  <div className="muted">{v.allowed_action_codes.length === 0 ? "Allows no actions" : `Allows: ${v.allowed_action_codes.join(", ")}`}{v.is_root_eligible ? " · root-eligible" : ""}</div>
+                  <div className="muted">{v.allowed_action_codes.length === 0 ? "Allows no actions" : `Allows: ${v.allowed_action_codes.join(", ")}`}{v.is_root_eligible ? " · root-eligible" : ""}{v.requires_competence_evidence ? " · needs competence evidence" : ""}</div>
+                  <div className="muted">Permit classes: {v.eligible_permit_class_ids.length ? names(v.eligible_permit_class_ids, className) : "none"} · System types: {v.eligible_system_type_ids.length ? names(v.eligible_system_type_ids, sysTypeName) : "none"}{v.grantable_type_ids.length ? ` · May appoint: ${names(v.grantable_type_ids, typeName)}` : ""}</div>
                   {v.decision_reason ? <div className="muted">Decision: {v.decision_reason}</div> : null}</li>
               ))}</ul>
             )}
             <details>
               <summary>Propose a new version</summary>
+              {versions[0] ? <p className="muted text-sm">Filled in from version {versions[0].version_no}. Change only what should change.</p> : null}
               <ActionForm action={proposeTypeVersion} what="Proposing this version" submitLabel="Propose for approval">
                 <input type="hidden" name="key" value={k()} />
                 <input type="hidden" name="appointment_type_id" value={t.id} />
@@ -159,13 +188,26 @@ export default async function Venue() {
                 </fieldset>
                 <fieldset className="stack"><legend>Appointments of this type may appoint people to</legend>
                   {(apptTypes.data ?? []).filter((x) => x.venue_id === t.venue_id).map((x) => (
-                    <label className="inline" key={x.id}><input type="checkbox" name="grantable" value={x.id} /> {x.name}</label>
+                    <label className="inline" key={x.id}><input type="checkbox" name="grantable" value={x.id} defaultChecked={versions[0]?.grantable_type_ids.includes(x.id)} /> {x.name}</label>
                   ))}
                 </fieldset>
+                <fieldset className="stack"><legend>Permit classes appointments of this type may cover</legend>
+                  {(classes.data ?? []).filter((c) => c.venue_id === t.venue_id).length === 0 ? <p className="muted text-sm m-0">This venue has no permit classes yet.</p> : null}
+                  {(classes.data ?? []).filter((c) => c.venue_id === t.venue_id).map((c) => (
+                    <label className="inline" key={c.id}><input type="checkbox" name="permit_classes" value={c.id} defaultChecked={versions[0]?.eligible_permit_class_ids.includes(c.id)} /> {c.name}</label>
+                  ))}
+                </fieldset>
+                <fieldset className="stack"><legend>System types appointments of this type may cover</legend>
+                  {(sysTypes.data ?? []).filter((x) => x.venue_id === t.venue_id).length === 0 ? <p className="muted text-sm m-0">This venue has no system types yet.</p> : null}
+                  {(sysTypes.data ?? []).filter((x) => x.venue_id === t.venue_id).map((x) => (
+                    <label className="inline" key={x.id}><input type="checkbox" name="system_types" value={x.id} defaultChecked={versions[0]?.eligible_system_type_ids.includes(x.id)} /> {x.label}</label>
+                  ))}
+                  <p className="muted text-sm m-0">An appointment can only be scoped to classes and system types ticked here. Leaving them unticked means appointments of this type cover none.</p>
+                </fieldset>
                 <label>Can be a root appointment
-                  <select name="root_eligible" required defaultValue=""><option value="">— Choose —</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+                  <select name="root_eligible" required defaultValue={versions[0] ? (versions[0].is_root_eligible ? "yes" : "no") : ""}><option value="">— Choose —</option><option value="yes">Yes</option><option value="no">No</option></select></label>
                 <label>Needs competence evidence when appointing
-                  <select name="requires_evidence" required defaultValue=""><option value="">— Choose —</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+                  <select name="requires_evidence" required defaultValue={versions[0] ? (versions[0].requires_competence_evidence ? "yes" : "no") : ""}><option value="">— Choose —</option><option value="yes">Yes</option><option value="no">No</option></select></label>
                 <label>Takes effect from<input name="effective_from" type="date" required defaultValue={today} /></label>
                 <label>Reason for the change<textarea name="reason" required rows={2} /></label>
                 {!hasRoot.has(t.venue_id) ? (

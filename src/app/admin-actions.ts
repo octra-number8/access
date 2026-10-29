@@ -112,6 +112,11 @@ export async function liftRestriction(_: ActionResult, f: FormData): Promise<Act
 
 // ---- Appointment types (D-011) --------------------------------------------------------
 
+export async function createVenue(_: ActionResult, f: FormData): Promise<ActionResult> {
+  return run("create_venue", { p_idempotency_key: key(f), p_customer_id: text(f, "customer_id"), p_code: text(f, "code"),
+    p_name: text(f, "name"), p_timezone: text(f, "timezone") }, "Venue created. Open its set-up page to see what it needs next");
+}
+
 export async function createAppointmentType(_: ActionResult, f: FormData): Promise<ActionResult> {
   return run("create_appointment_type", { p_idempotency_key: key(f), p_venue_id: text(f, "venue_id"),
     p_code: text(f, "code"), p_name: text(f, "name") }, "Appointment type created");
@@ -124,8 +129,8 @@ export async function proposeTypeVersion(_: ActionResult, f: FormData): Promise<
     p_idempotency_key: key(f),
     p_appointment_type_id: text(f, "appointment_type_id"),
     p_allowed_action_codes: f.getAll("actions").map(String),
-    p_eligible_permit_class_ids: [],
-    p_eligible_system_type_ids: [],
+    p_eligible_permit_class_ids: f.getAll("permit_classes").map(String),
+    p_eligible_system_type_ids: f.getAll("system_types").map(String),
     p_grantable_type_ids: f.getAll("grantable").map(String),
     p_is_root_eligible: text(f, "root_eligible") === "yes",
     p_requires_competence_evidence: text(f, "requires_evidence") === "yes",

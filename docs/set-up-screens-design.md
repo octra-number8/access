@@ -286,3 +286,33 @@ Desktop is the main layout (administrators and appointees), but every screen wor
 - A version's effective date may be in the past (the API has always allowed it). It does not change past decisions, which record the version they used; the screen defaults to "now".
 - Criteria codes are made from each line's wording, so rewording a criterion gives it a new code in the next version.
 - After a successful action, a form that disappears took its success message with it (the known 2b feedback gap; fixed 29 October 2026, see phase-2-design.md).
+
+---
+
+## 16. Platform set-up gaps (29 October 2026)
+
+**Built**
+- Migration `20261025000069_venue_and_type_setup`: refusals in words for a venue code already used by the customer, a time zone the database does not know, and an appointment type code already used at the venue. Who may do these is unchanged.
+- Venue administration → **Create a venue** (tenant administrators, `venue.create`): name, code and time zone (from the full list, Europe/London selected). The notice says the venue starts with its root area only, and that creating it gives no authority there.
+- **Appointment type versions**:
+  - The form now sets the permit classes and system types appointments of the type may cover, from that venue's own lists. Before this, every version proposed on screen was saved with none, so a new version silently removed any eligibility the previous one had (defect fix).
+  - Every field is filled in from the latest version, including which types it may appoint and the root and evidence answers, which previously had to be chosen again each time.
+  - Each version lists its permit classes, system types and the types it may appoint.
+  - Each type names its venue when an administrator has more than one, since types at different venues can share a name.
+- Review page: a root appointee deciding a version sees its permit classes, system types and the types it may appoint, not only its actions.
+
+**Tested**
+- Full suite on the test runner, with T-1: 2,075 assertions, 0 failures. Unit tests: 39. Type check passes.
+- pgTAP `48_venue_and_type_setup` (16 assertions): platform administrator, other customer's administrator and appointee refused; replay; code and time zone refusals in words; a new venue has its root area only and no appointments; its set-up page opens for the administrator and not for another customer; the type code refusal; eligibility from another venue refused.
+- Browser, production build: as a tenant administrator, a venue code clash is refused in words and a venue is created; the rehearsal venue's Authorising Engineer form is filled in from version 1 and offers only that venue's system type; a version adding Fire alarm is proposed and keeps everything else. As the root appointee, the review page shows the version in full.
+
+**Found, then approved and built (T-1, D-027)**
+- A venue could be left unable ever to change its appointment types. Direct publication ends with the first root appointment (D-011), and afterwards versions need `appointment_type.approve`, which comes only from an appointment. The rehearsal venue was in this state: its root type allows appointing, not approving types.
+- Migration `20261025000070_root_can_approve_types`: recording a root appointment is refused, in words, if its type version does not allow `appointment_type.approve` and no other root appointment in force at the venue does. A trigger, so it holds on every path; existing appointments are untouched.
+- Tested in `48_venue_and_type_setup`: refused with no approving root; a type that can approve is accepted; once that root is in force, a further root of the other type is accepted. Disabling the trigger, or ignoring other roots in force, each fails the test. Two fixtures (tests 40 and 44) gave their first root at a second venue a type that could not approve types; they now can.
+- For the rehearsal venue, set up a fresh venue with the new screen rather than add a recovery route.
+
+**Not built here, or limits**
+- Customers are still created by the platform operator (`customer.create`); there is no screen for that.
+- A venue's name and time zone cannot be changed on screen, and venues cannot be closed.
+- Venues have only the status "onboarding"; there is no step marking one as live.

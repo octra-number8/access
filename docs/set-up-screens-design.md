@@ -244,7 +244,7 @@ Desktop is the main layout (administrators and appointees), but every screen wor
 - Tests 08 and 44 updated: retiring an area an appointment relies on is now a refusal in words, and the set-up items link to the screen.
 - Browser walk-through on the production build: as a tenant administrator on the rehearsal venue, add an area kind, an area and one below it; retiring the upper one is refused, naming the area below; register a system type and system, link it to an area, record a maintainer and end the record with a reason. On the demo venue, retiring Hall 1 is refused, naming its open job. Back on the rehearsal venue: a gate point is added in the mezzanine on the Entry page; retiring the mezzanine is refused, naming the gate; the gate point is retired; then the mezzanine and Hall A are retired. As the root appointee the page is read-only. Checked at 375 px.
 
-**For confirmation (stricter than §6 and §7 said)**
+**Stricter than §6 and §7 said (confirmed 29 October 2026)**
 - An appointment or delegation blocks retiring an area if any of its scopes names the area, not only when that is its only scope. This is what 0008 already enforced; it errs towards refusing.
 - Access visits, restriction windows, and keys or passes also block retiring an area; open jobs and delegations also block retiring a system.
 - Retired areas and systems cannot be newly referred to, and retiring cannot be undone.

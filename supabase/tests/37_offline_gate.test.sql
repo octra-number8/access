@@ -146,7 +146,7 @@ select ok(api.submit_fallback_entries(tests.key(), tests.w('north'), tests.w('m_
   'client_entry_id', gen_random_uuid(), 'recorded_at', clock_timestamp(), 'name_given', 'X', 'purpose', 'Y', 'contacted', 'Z',
   'direction', 'in', 'identity_method', 'photo_id', 'decision', 'admitted')))::text like '%not one made for this gate point%',
   'an entry relies only on a manifest made for its own gate');
-select is((select count(*)::int from core.manual_fallback_entry), 0, 'and with any problem, nothing is kept: the device keeps them');
+select is((select count(*)::int from core.manual_fallback_entry where venue_id = tests.w('v1')), 0, 'and with any problem, nothing is kept: the device keeps them');
 
 create temp table t_entries as select jsonb_build_array(
   jsonb_build_object('client_entry_id', gen_random_uuid(), 'recorded_at', clock_timestamp(), 'pass_number', (select v ->> 'pass_number' from t_r where name = 'card_op'),

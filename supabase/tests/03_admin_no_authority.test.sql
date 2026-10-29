@@ -79,7 +79,7 @@ select is((select status from core.appointment where id = (select id from t_root
 -- ---- Nothing changed, and every attempt is on record ------------------------
 select is((select status from core.appointment where id = tests.w('ap_h')), 'in_force', 'H''s appointment is untouched');
 select is((select status from core.engagement where id = tests.w('e1')), 'suspended', 'the suspension is still in place');
-select is((select count(*)::int from core.delegation), 0, 'no delegation was created');
+select is((select count(*)::int from core.delegation where venue_id = tests.w('v1')), 0, 'no delegation was created');
 select ok((select count(*) from audit.audit_event
             where action = 'authz.denied' and actor_user_id = tests.w('u_platform')) >= 5,
   'super-admin attempts are audited');

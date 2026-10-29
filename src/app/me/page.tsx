@@ -1,12 +1,19 @@
 import { randomUUID } from "node:crypto";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/ActionForm";
+import { AppointmentCard, DelegationRow } from "@/components/appointment-card";
 import { CorrectionsPanel } from "@/components/corrections-panel";
 import { HistoryPanel } from "@/components/history-panel";
 import { date, RELATIONSHIP_KIND, RELATIONSHIP_STATE, verificationText, type Verification } from "@/lib/labels";
 import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
+import type { Appointment, Delegation } from "@/lib/authority";
 import { decideRelationship, declareCompetency, endRelationship } from "../admin-actions";
+import { acknowledgeAppointment, revokeDelegation } from "../authority-actions";
+
+// S1-5 (D-026): fixed wording for the pilot.
+const DECLARATION = "I have read the scope and limitations of this appointment and accept it. I will act only within them.";
 
 export const metadata = { title: "Your details" };
 
@@ -39,11 +46,47 @@ export default async function Me() {
   const k = () => randomUUID();
   const { data: anyVenue } = await db.from("venue").select("timezone").limit(1);
   const tz = (anyVenue ?? [])[0]?.timezone ?? "UTC";
+  const { data: mine } = await db.rpc("my_appointments");
+  const appts = ((mine as { appointments?: Appointment[] } | null)?.appointments ?? []);
+  const received = ((mine as { received?: Delegation[] } | null)?.received ?? []);
+  const given = ((mine as { given?: Delegation[] } | null)?.given ?? []);
 
   return (
     <>
       <h1>Your details</h1>
       {me ? <p>{me.given_name} {me.family_name} · <span className="muted">{session.email}</span></p> : null}
+
+      <h2 id="appointments">Your appointments</h2>
+      {appts.length === 0 ? <p>You hold no appointments. Authority comes only from an appointment made to you.</p> : null}
+      {appts.map((a) => (
+        <AppointmentCard key={a.id} a={a} tz={tz}>
+          {a.status === "pending_acknowledgement" ? (
+            <ActionForm action={acknowledgeAppointment} what="Acknowledging the appointment" submitLabel="Acknowledge">
+              <input type="hidden" name="key" value={k()} /><input type="hidden" name="appointment_id" value={a.id} />
+              <input type="hidden" name="row_version" value={a.row_version} />
+              <p className="m-0">It is not in force until you acknowledge it. Read what it allows, where and when, and its limitations, above.</p>
+              <label className="inline"><input type="checkbox" name="declaration" required /> {DECLARATION}</label>
+            </ActionForm>
+          ) : null}
+          {a.can_grant || a.can_delegate ? (
+            <p><Link href={`/appointments/${a.id}`}>{a.can_grant && a.can_delegate ? "Make an appointment or delegate" : a.can_grant ? "Make an appointment" : "Delegate"} from this appointment</Link></p>
+          ) : null}
+        </AppointmentCard>
+      ))}
+      {received.length ? <><h3>Delegated to you</h3><ul className="history">{received.map((d) => <DelegationRow key={d.id} d={d} tz={tz} />)}</ul></> : null}
+      {given.length ? (
+        <><h3>Delegated by you</h3><ul className="history">{given.map((d) => (
+          <DelegationRow key={d.id} d={d} tz={tz}>
+            <details><summary className="text-sm">Withdraw</summary>
+              <ActionForm action={revokeDelegation} what="Withdrawing the delegation" submitLabel="Withdraw delegation" secondary>
+                <input type="hidden" name="key" value={k()} /><input type="hidden" name="delegation_id" value={d.id} />
+                <input type="hidden" name="row_version" value={d.row_version} />
+                <label>Reason<input name="reason" required maxLength={1000} /></label>
+              </ActionForm>
+            </details>
+          </DelegationRow>
+        ))}</ul></>
+      ) : null}
 
       <h2>Organisations you work with</h2>
       {(rels.data ?? []).length === 0 ? <p>None.</p> : null}

@@ -12,7 +12,7 @@ Each entry records what was decided, by whom, and what it changes. Open items ar
 
 ## D-002 — Root appointment ceremony (Phase 0 gap G2)
 - **Date:** 24 October 2026 · **Decided by:** Wes Pierce
-- The first appointment at a venue is a recorded **root appointment** made by the customer's named duty holder, backed by an uploaded letter of appointment, confirmed by a second named person, and written as a dedicated audit event.
+- The first appointment at a venue is a recorded **root appointment** made by the customer's named duty holder, backed by an uploaded letter of appointment (corrected by D-026: a reference to the signed letter), confirmed by a second named person, and written as a dedicated audit event.
 - Every later appointment must trace to an appointer holding `appointment.grant` for at least the granted scope (`appointment.appointed_under_appointment_id`).
 - Tenant and platform administrators may *record* appointments but never grant authority (invariant 9).
 - Related: Q14 (still requires technical-authority validation of the venue's actual appointment chain).
@@ -163,6 +163,22 @@ Each entry records what was decided, by whom, and what it changes. Open items ar
   - Proof: pgTAP `44_venue_setup` (79 assertions); 10 of 10 deliberate weakenings caught; browser check as the demo venue administrator, desktop and 375 px.
   - **Found while building:** the root appointment, ordinary appointments, delegations, areas, area kinds, system types, systems, system ownership, events, document types, review criteria and evidence requirements have an API but no screen; only the seed script has created them. The set-up page says "No screen yet" for these instead of linking nowhere.
 
+
+## D-026 — Venue set-up screens design approved (S1)
+- **Date:** 28 October 2026 · **Decided by:** Wes Pierce
+- [set-up-screens-design.md](set-up-screens-design.md) approved with S1-1 to S1-10, as recommended:
+  - Split into S1a (people and authority), S1b (places and systems) and S1c (events and evidence settings).
+  - A `staff` invitation kind, so a tenant administrator can give venue staff a login without the platform operator.
+  - Revoking a tenant administrator, keeping at least one per customer and never revoking oneself.
+  - The letter of appointment is held as a reference to where the signed letter is kept, for the pilot; revisit with G11.
+  - A fixed acknowledgement declaration for the pilot: "I have read the scope and limitations of this appointment and accept it. I will act only within them."
+  - Non-root appointments made on screen need an end date.
+  - Delegations are part of S1a.
+  - Retiring an area is refused while anything listed in §6 depends on it.
+  - Retiring a system and ending an ownership record are added, with the same kind of checks.
+  - Evidence requirements join the venue set-up page once S1c is built.
+- **D-002 wording corrected (S1-4):** the root appointment is "backed by a reference to the signed letter of appointment", not an uploaded file.
+- **As built (S1a):** see set-up-screens-design.md §13. Migration `20261025000066`, screens `/venue/authority`, `/me` (Your appointments) and `/appointments/[id]`; pgTAP `45_people_and_authority`.
 ---
 
 ## CLAUDE.md wording — applied 24 October 2026 (approved by Wes Pierce)

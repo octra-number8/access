@@ -1,0 +1,219 @@
+# S1 — venue set-up screens: design for approval
+
+**Status:** Approved 28 October 2026 (D-026). Decisions are in §12.
+Raised by the P4 build (D-025). The venue set-up page shows "No screen yet" for the pieces below. Each has a tested API that only the seed script has ever called. Until these screens exist, a real venue cannot be set up without a developer, and the P7 rehearsal cannot happen.
+
+Source questions:
+- Q13–Q16 (appointments and separation of duties).
+- Q20–Q23 (venue onboarding, appointment types).
+- Q26–Q31 (organisations, engagements, evidence).
+- D-002 (root ceremony), D-007 (separation of duties), D-008 (system scope), D-009 (acknowledgement), D-011 (type versions).
+
+Three things these screens must not do:
+- **Administration never becomes authority** (invariant 9, D-002). A tenant administrator *records* a root appointment the duty holder made; they never grant one. Every other appointment is granted by an appointee, under their own appointment, within its scope.
+- **The screen never decides.** Choices offered are a convenience. For example, only types the appointer may grant, and only scopes inside the appointer's own. The database re-checks everything and refuses in words.
+- **No safety meaning in a state.** "In force" means the appointment is recorded, confirmed and acknowledged. It does not mean the person is competent (CLAUDE.md §1).
+
+---
+
+## 1. What is missing
+
+| Piece | API | Screen | Gap in the API too |
+|---|---|---|---|
+| Venue staff logins | `create_person`, `link_user_account` | none | **Yes.** Linking needs an auth user that only the platform operator can create. Person invitations work only for contractor organisations. |
+| Tenant administrators | `grant_tenant_admin` | none | **Yes.** There is no way to revoke one. |
+| Root appointment | record, confirm, revoke | none | No |
+| Acknowledging an appointment | `acknowledge_appointment` | none | No. No appointee can acknowledge in the app today, so no appointment made through a screen could come into force. |
+| Appointments | grant, revoke | none | No |
+| Delegations | grant, revoke | none | No |
+| Areas and area kinds | create, retire | none | **Yes.** Retiring checks nothing (§6). |
+| System types, systems, links, ownership | create, link, record | none | **Yes.** Systems cannot be retired, and ownership cannot be ended. |
+| Events and phases | `create_event`, `add_event_phase` | none | No |
+| Document types, review criteria, evidence requirements | create, publish | none | No |
+
+## 2. Split [S1-1]
+
+Three increments, each tested and committed separately, in the order the venue needs them:
+
+- **S1a — people and authority:** staff invitations, tenant administrators, the root ceremony, acknowledgement, appointments, delegations.
+- **S1b — places and systems:** areas and kinds, the area retirement checks, system types and systems, area links, the ownership register.
+- **S1c — events and evidence settings:** events and phases, document types, review criteria, evidence requirements.
+
+Each increment adds only the API its screens need (§1), with pgTAP, mutation checks, a browser walk-through as each role, and the negative cases in §11.
+
+## 3. Venue staff logins (S1a) [S1-2]
+
+Venue staff are the customer's own people: administrators, appointees and gate staff. Today they exist only if the platform operator creates their login by hand.
+
+Proposed: a third invitation kind, `staff`, sent by a tenant administrator to a person record they have created. It works like the existing person invitation:
+- an email link;
+- sign-in by email code;
+- the privacy notice;
+- acceptance, which links the login to that person record.
+
+An invitation grants nothing; the person can sign in and see only what their records allow. It expires, can be cancelled, and is recorded in the audit log like the others.
+
+A tenant administrator can also:
+- disable a login (the API exists);
+- grant and revoke tenant administration.
+
+Revoking is new [S1-3]. A customer must always keep at least one tenant administrator, and no one can revoke their own role.
+
+## 4. The root appointment (S1a)
+
+The root ceremony (D-002) is a page under Venue administration → Authority. Its steps:
+
+1. **Record (tenant administrator A):**
+   - the appointee, and the duty holder who made the appointment;
+   - an appointment type version marked root-eligible;
+   - permit classes, and scopes (areas, systems);
+   - the dates it applies, and when it is due for review;
+   - limitations;
+   - the reference to the letter of appointment [S1-4].
+2. **Confirm (tenant administrator B):** A cannot confirm, and neither can the appointee. B sees exactly what A recorded.
+3. **Acknowledge (the appointee):** done on their own "Your appointments" page (§5). Until then it is not in force.
+
+Revoking a root appointment needs a reason and an evidence reference, as the API already requires.
+
+The page shows every root appointment at the venue, with its state in words and who must act next. It is the same wording the set-up page uses.
+
+## 5. Appointments and acknowledgement (S1a)
+
+**"Your appointments"** (on `/me`) is for every person who holds or is offered an appointment. For each appointment it shows:
+- its type;
+- what it allows, as the action descriptions in plain English (not codes);
+- its scope, classes and dates;
+- its limitations;
+- who appointed them, and under which appointment.
+
+A pending appointment has an **Acknowledge** step with a declaration [S1-5]. Delegations the person holds or has given are listed beside it.
+
+**Granting** is done from an appointee's own appointment, by someone whose appointment allows `appointment.grant`. The form offers:
+- **Appointee:** a person of the customer.
+- **Type:** only the types this appointment may grant (`grantable_type_ids`), each showing what it allows.
+- **Permit classes:** only those in both the type and the appointer's appointment.
+- **Scope:**
+  - Areas come from the venue's area tree, each with "and everything below it". Only areas within the appointer's own scope are offered.
+  - Systems, optionally limited to an area (D-008).
+- **Dates:** inside the appointer's own; the end date is required [S1-6].
+- **Review date, limitations, and a competence evidence reference.** The reference is required when the type requires it.
+- **Acting as:** when the appointer holds more than one appointment that could grant this, they choose which (`acting_appointment_id`). It is recorded on the decision.
+
+Revoking needs a reason. It is offered to anyone whose appointment allows `appointment.revoke` over the appointment's scope; the database decides.
+
+**Delegations** [S1-7] are granted from the delegator's appointment page. The delegate must hold their own in-force appointment (invariant 7). Actions, classes and scope are offered only where both appointments allow them. The delegator, or anyone the API allows, can withdraw a delegation.
+
+## 6. Areas (S1b)
+
+The area tree shows each area's kind and code. A tenant administrator can add a child area and add area kinds.
+
+**Retiring an area [S1-8]** is refused with the reasons listed while anything still depends on it:
+- an area below it that has not been retired;
+- an open job or permit that names it;
+- an isolation, impairment, fire watch or exclusion zone that is not closed;
+- an area stop that has not been lifted;
+- a gate point in it;
+- a current occupation;
+- an appointment or delegation in force whose only scope is that area.
+
+Retiring is otherwise a single administrative step. It never touches issued records, which keep the area as it was when they were frozen.
+
+## 7. Systems (S1b)
+
+Tenant administrators can:
+- add system types and systems;
+- link a system to the areas it serves;
+- record ownership (owns, maintains, operates; an organisation, optionally its engagement; dates; an evidence reference).
+
+**New in the API [S1-9]:**
+- Retiring a system, refused while an isolation or impairment on it is not closed, or an appointment in force is scoped only to it.
+- Ending an ownership record from a date, with a reason.
+
+System types are not retired in the pilot. A type with no systems simply drops off the set-up page.
+
+## 8. Events and phases (S1c)
+
+Tenant administrators can create an event (code, name, dates) and add build, live and breakdown phases within those dates. Entry rules, inductions and work packages already refer to events and phases. No new API is needed.
+
+## 9. Evidence settings (S1c)
+
+Tenant administrators can:
+- add document types, each with the level its documents belong to (organisation or person);
+- publish review criteria for each type: a versioned list with an owner, an effective date and a change reason;
+- define evidence requirements and publish their versions.
+
+These already drive the engagement evidence check, the review page and the permit evidence lists. Nothing gets a default: a venue with no requirements asks for no evidence. The set-up page will list evidence requirements as an item once this screen exists, so that is a visible choice rather than an oversight [S1-10].
+
+## 10. Where the screens live
+
+- **Venue administration → Authority:** root appointments, appointments by type, delegations, tenant administrators, staff invitations.
+- **Venue administration → Places and systems:** the area tree, system types and systems, the ownership register.
+- **Venue administration → Events.**
+- **Venue administration → Evidence settings.**
+- **`/me` → Your appointments:** acknowledgement, and what you hold.
+
+The set-up page's "Open" links point to each screen as it is built, and "No screen yet" disappears from the matching items.
+
+Desktop is the main layout (administrators and appointees), but every screen works at 375 px.
+
+## 11. Proof
+
+**Positive:** S1 ends with the full ceremony done from screens alone. A new venue goes from no appointments to an in-force root appointee, who grants an appointment that the appointee acknowledges and then uses. Nothing is seeded.
+
+**Negative, in pgTAP and the browser:**
+- A tenant administrator confirming their own recorded root appointment.
+- The appointee confirming it.
+- Acknowledging someone else's appointment.
+- Granting a type outside `grantable_type_ids`.
+- Granting a scope, class or date range wider than the appointer's own.
+- Self-appointment and self-delegation.
+- A delegation wider than either appointment.
+- A super-admin recording, confirming or granting anything.
+- Retiring an area with a live permit, an open isolation or a gate point.
+- Retiring a system with an open isolation.
+- Revoking the last tenant administrator.
+- A staff invitation accepted by a different email address, or after it was cancelled.
+- Cross-tenant reads and writes on every new read.
+- Repeating the same request (idempotency).
+- Concurrent edits: a stale version is refused.
+
+## 12. Decisions
+
+| Ref | Question | Recommendation |
+|---|---|---|
+| S1-1 | Split into S1a (people and authority), S1b (places and systems), S1c (events and evidence settings)? | **Yes.** S1a unblocks everything else, because no appointment can come into force without acknowledgement on screen. |
+| S1-2 | Add a `staff` invitation kind, so a tenant administrator can give venue staff a login without the platform operator? | **Yes.** Otherwise the operator touches every customer's staff list, which works against invariant 9 and does not scale. |
+| S1-3 | Add revoking a tenant administrator, keeping at least one and never revoking yourself? | **Yes.** Offboarding is a security control; today it needs a database change. |
+| S1-4 | The letter of appointment: a reference (where the signed letter is kept) or an uploaded file? D-002 says "uploaded"; the build has a reference. | **Reference for the pilot**, with the D-002 wording corrected to match. Uploading would add a new document owner kind, and the venue's own records already hold the signed letter. Revisit with G11. |
+| S1-5 | The acknowledgement declaration: fixed product wording, or venue configuration? | **Fixed wording for the pilot:** "I have read the scope and limitations of this appointment and accept it. I will act only within them." The venue's technical authority can ask for its own wording later (Q14). |
+| S1-6 | Must every appointment made on screen have an end date? The API allows open-ended ones. | **Yes on screen, for non-root appointments**, with a review date encouraged. Root appointments stay as the duty holder's letter says. It limits forgotten authority; the database rule is unchanged. |
+| S1-7 | Delegations in S1a, or later? | **In S1a.** They are part of invariant 7 (a formally delegated equivalent lifting a suspension), and the API and tests already exist. |
+| S1-8 | Refuse retiring an area while anything listed in §6 still depends on it? | **Yes.** Retiring today checks nothing, so it could orphan a live control (launch gate). This changes a safety-relevant rule, so it needs your approval. |
+| S1-9 | Add retiring a system and ending an ownership record, with the same kind of checks? | **Yes.** Otherwise a removed system stays selectable for isolations and appointments for ever. |
+| S1-10 | Add "Evidence requirements" to the set-up page once S1c is built ("None defined" is a valid, visible state)? | **Yes.** |
+
+---
+
+## 13. As built (S1a, 29 October 2026)
+
+**Built**
+- Migration `20261025000066_people_and_authority`:
+  - Staff invitations: `api.create_staff_invitation`, a `staff` kind naming an existing person, one pending per person. Accepting (`api.accept_invitation`, patched) links the login to that person and does nothing else. The preview names the customer and person; `cancel_invitation` handles the new kind.
+  - `api.revoke_tenant_admin`: needs a reason; never yourself (the separation-of-duties floor); never the last current administrator, with revocations serialised per customer so two administrators cannot remove each other at once.
+  - Reads: `api.authority_overview(venue)`, `api.my_appointments()` and `api.grant_options(appointment)`. Appointments are summarised in words (scope, classes, dates, who made them and under which appointment, state, next step). "Revoke" is offered only where `authz.capacities` says the database would allow it.
+  - The set-up page's root appointment item now links to the Authority page.
+- Screens:
+  - `/venue/authority`: root appointments (record, confirm, record a revocation); other appointments (revoke where allowed); delegations in force; tenant administrators (add, end); people and logins (add staff, invite to sign in, cancel, disable a login).
+  - `/me` → Your appointments: each appointment in words; acknowledging with the fixed declaration (S1-5); delegations received and given (withdraw).
+  - `/appointments/[id]`: appointing and delegating from one of your own appointments in force, offering only the types, classes, areas, systems, people and delegates the database would accept. End dates are required on screen (S1-6). An end before the start is refused in words.
+  - The invitation page has a staff branch.
+
+**Tested**
+- pgTAP `45_people_and_authority` (69 assertions); 12 of 12 deliberate weakenings caught.
+- Full suite on the test runner: 1,929 assertions, 0 failures.
+- Browser walk-through on a new venue, with no seeded appointments, on the production build: an administrator adds a staff member and invites them to sign in; they accept by email link; the administrator records their root appointment; a second administrator confirms it (the recorder is not offered confirmation); the appointee acknowledges it (refused without the declaration); the appointee appoints a gate supervisor, who acknowledges it; the appointee delegates one action. As an appointee, the Authority page shows no people list and no root form. Checked at 375 px.
+
+**Not built here, or limits**
+- The acknowledgement declaration is checked by the app, not the database: `acknowledge_appointment` records the act, as before.
+- The venue and its two appointment types for the walk-through were created through the API. The venue page's type form exists, but it cannot set a type's eligible classes or system types; venues themselves have no creation screen (platform set-up).
+- After a successful action, a form that disappears takes its success message with it (the known 2b feedback gap).

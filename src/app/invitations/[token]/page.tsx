@@ -31,11 +31,14 @@ export default async function Invitation({ params }: { params: Promise<{ token: 
     );
   }
   const isOrganisation = preview.kind === "organisation";
+  const isStaff = preview.kind === "staff";
   const key = randomUUID();
   return (
     <>
-      <h1>{isOrganisation ? `Set up your organisation at ${preview.venue_name}` : `Join ${preview.organisation_name}`}</h1>
-      {isOrganisation ? (
+      <h1>{isOrganisation ? `Set up your organisation at ${preview.venue_name}` : isStaff ? `Sign in to ${preview.customer_name}` : `Join ${preview.organisation_name}`}</h1>
+      {isStaff ? (
+        <p>You are invited to sign in as <strong>{preview.person_name}</strong>, a member of the venue&apos;s staff. Signing in gives you no authority by itself: what you can do comes only from appointments made to you, which you will be asked to acknowledge.</p>
+      ) : isOrganisation ? (
         <p>You are invited as a <strong>{String(preview.capacity_code).replace("_", " ")}</strong>. Accepting creates your organisation&apos;s record; the venue then checks your evidence before your engagement can start.</p>
       ) : (
         <p>You are invited to join as <strong>{String(preview.relationship_kind).replace("_", " ")}</strong>.</p>
@@ -67,8 +70,12 @@ export default async function Invitation({ params }: { params: Promise<{ token: 
               </label>
             </>
           ) : null}
-          <label>Your first name<input name="given_name" autoComplete="given-name" /></label>
-          <label>Your last name<input name="family_name" autoComplete="family-name" /></label>
+          {isStaff ? null : (
+            <>
+              <label>Your first name<input name="given_name" autoComplete="given-name" /></label>
+              <label>Your last name<input name="family_name" autoComplete="family-name" /></label>
+            </>
+          )}
           <label className="inline"><input type="checkbox" name="notice_read" required /> I have read the privacy notice</label>
         </ActionForm>
       ) : null}

@@ -180,7 +180,7 @@ Implemented in `supabase/migrations/20261024000013…18`; proved by `supabase/te
 Deputy and accountable-administrator changes, accepting or declining an administrator-recorded relationship, facilitated acceptance, competency declaration and verification, restrictions, appointment-type proposals and approval, resolving a duplicate organisation, cancelling invitations, the scanner-status view for operations. There are no buttons for these yet, rather than buttons that do nothing. **Built in phase 3b-2** (see phase-3-design.md §13).
 
 **Known gaps**
-- The approval confirmation disappears when the approved item leaves the list (the result is correct; the feedback is lost).
+- The approval confirmation disappears when the approved item leaves the list (the result is correct; the feedback is lost). **Fixed 29 October 2026:** a form removed by the refreshed page hands its success message to a bar at the foot of the screen (`src/components/Flash.tsx`), kept on that page until dismissed or the person leaves it.
 - No formal WCAG 2.1 AA audit yet; layout is responsive but not tested on devices.
 - Production email needs an SMTP provider (E1); the scanner needs the AWS account (S1).
 

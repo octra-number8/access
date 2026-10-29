@@ -3,6 +3,7 @@ import { Hanken_Grotesk } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
+import { FlashProvider } from "@/components/Flash";
 import { SignOutButton } from "@/components/sign-out-button";
 import "./globals.css";
 
@@ -37,7 +38,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             ) : null}
           </div>
         </header>
-        <main id="main" className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+        <FlashProvider>
+          <main id="main" className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+        </FlashProvider>
       </body>
     </html>
   );

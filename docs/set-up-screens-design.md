@@ -216,7 +216,7 @@ Desktop is the main layout (administrators and appointees), but every screen wor
 **Not built here, or limits**
 - The acknowledgement declaration is checked by the app, not the database: `acknowledge_appointment` records the act, as before.
 - The venue and its two appointment types for the walk-through were created through the API. The venue page's type form exists, but it cannot set a type's eligible classes or system types; venues themselves have no creation screen (platform set-up).
-- After a successful action, a form that disappears takes its success message with it (the known 2b feedback gap).
+- After a successful action, a form that disappears took its success message with it (the known 2b feedback gap; fixed 29 October 2026, see phase-2-design.md).
 
 ---
 
@@ -253,7 +253,7 @@ Desktop is the main layout (administrators and appointees), but every screen wor
 - System types and area kinds cannot be retired (as §7 said for types); system-area links cannot be removed in the pilot.
 - Gate points are managed on the Entry page, not here.
 - Retiring a gate point has no checks of its own: devices set up for it simply stop being able to record entry there.
-- After a successful action, a form that disappears takes its success message with it (the known 2b feedback gap), for example when ending an ownership record.
+- After a successful action, a form that disappears took its success message with it (the known 2b feedback gap; fixed 29 October 2026, see phase-2-design.md), for example when ending an ownership record.
 
 
 ---
@@ -285,4 +285,4 @@ Desktop is the main layout (administrators and appointees), but every screen wor
 - Document types and competency types cannot be retired; a requirement is withdrawn by publishing a version that is not in force.
 - A version's effective date may be in the past (the API has always allowed it). It does not change past decisions, which record the version they used; the screen defaults to "now".
 - Criteria codes are made from each line's wording, so rewording a criterion gives it a new code in the next version.
-- After a successful action, a form that disappears takes its success message with it (the known 2b feedback gap).
+- After a successful action, a form that disappears took its success message with it (the known 2b feedback gap; fixed 29 October 2026, see phase-2-design.md).

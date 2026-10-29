@@ -7,6 +7,8 @@ export interface Denial {
   missing: string;
   resolvable_by: string;
   evidence?: EvidenceLine[];
+  /** Each thing still in the way, in words (for example what still depends on an area). */
+  problems?: string[];
 }
 
 export interface EvidenceLine {
@@ -30,7 +32,8 @@ export function Blocked({ what, denial }: { what: string; denial: Denial }) {
         <dt>Who can resolve it</dt>
         <dd>{denial.resolvable_by}</dd>
       </dl>
-      {denial.evidence ? <EvidenceList lines={denial.evidence} /> : null}
+      {denial.problems?.length ? <ul>{denial.problems.map((p) => <li key={p}>{p}</li>)}</ul> : null}
+      {denial.evidence ?<EvidenceList lines={denial.evidence} /> : null}
     </div>
   );
 }

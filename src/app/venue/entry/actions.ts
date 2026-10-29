@@ -99,6 +99,12 @@ export async function createGatePoint(_: ActionResult, f: FormData): Promise<Act
     p_name: text(f, "name") }, "Gate point added");
 }
 
+// A gate point blocks retiring its area, so it can be retired itself (S1b). Scans there then stop.
+export async function retireGatePoint(_: ActionResult, f: FormData): Promise<ActionResult> {
+  return run("retire_gate_point", { p_idempotency_key: text(f, "key"), p_gate_point_id: text(f, "gate_point_id"),
+    p_expected_version: Number(text(f, "row_version")) }, "Gate point retired");
+}
+
 // ---- Visit purposes (Q121, Q162) -------------------------------------------------------------------
 export async function startPurposesDraft(_: ActionResult, f: FormData): Promise<ActionResult> {
   return run("create_venue_config_draft", { p_idempotency_key: text(f, "key"), p_venue_id: text(f, "venue_id"), p_kind: "access_purposes" },

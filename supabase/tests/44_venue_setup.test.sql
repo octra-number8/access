@@ -120,8 +120,8 @@ select is(tests.state(tests.w('v2'), 'root_appointment'), 'proposed', 'once the 
 -- Places and systems --------------------------------------------------------------------------
 select is(tests.item(tests.w('u_a1'), tests.w('v1'), 'areas') ->> 'detail', '4 below the venue', 'V1''s areas are counted, not the venue itself');
 select is(tests.item(tests.w('u_a1'), tests.w('v1'), 'systems') ->> 'detail', '2 registered', 'and its systems');
-select is(tests.item(tests.w('u_a1'), tests.w('v1'), 'areas') ->> 'href', null, 'areas have no screen yet, and the item says so');
-select ok(tests.item(tests.w('u_a1'), tests.w('v1'), 'areas') ->> 'resolved_by' like '%no screen for this yet%', '(in words)');
+select is(tests.item(tests.w('u_a1'), tests.w('v1'), 'areas') ->> 'href', '/venue/places', 'areas link to their screen (S1b)');
+select is(tests.item(tests.w('u_a1'), tests.w('v1'), 'systems') ->> 'href', '/venue/places#systems', 'and so do systems');
 
 -- Work and permits ----------------------------------------------------------------------------
 select is(tests.state(tests.w('v1'), 'calendar'), 'not_set_up', 'no calendar yet');

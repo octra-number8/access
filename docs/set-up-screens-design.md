@@ -217,3 +217,41 @@ Desktop is the main layout (administrators and appointees), but every screen wor
 - The acknowledgement declaration is checked by the app, not the database: `acknowledge_appointment` records the act, as before.
 - The venue and its two appointment types for the walk-through were created through the API. The venue page's type form exists, but it cannot set a type's eligible classes or system types; venues themselves have no creation screen (platform set-up).
 - After a successful action, a form that disappears takes its success message with it (the known 2b feedback gap).
+
+---
+
+## 14. As built (S1b, 29 October 2026)
+
+**Built**
+- Migration `20261025000067_places_and_systems`:
+  - `core.area_retire_blockers` lists, in words, everything still depending on an area: areas below it not retired; open jobs naming it (not cancelled, and either their window has not passed or a permit is still open); isolations not returned and impairments not restored on a system serving it; fire watches not ended for work in it; exclusion zones not removed; stops not lifted; gate points; current occupations; access visits not ended; restriction windows not ended; keys or passes for it not retired; appointments and delegations scoped to it.
+  - `core.system_retire_blockers` does the same for a system: isolations not returned, impairments not restored, open jobs naming it, appointments and delegations scoped to it.
+  - `api.retire_area` (patched) and the new `api.retire_system` return those as a refusal with the list (`in_use`). The triggers on `retired_at` refuse the same update by any other path. The venue's root area is refused first.
+  - Retiring is one way: an area or system cannot be un-retired.
+  - A retired area or system cannot be newly referred to by an appointment or delegation scope, a system link, an ownership record, an isolation, an impairment, a gate point, an exclusion zone, a key or pass, or an occupation. Issued records keep what they named.
+  - `api.end_system_ownership`: ends a record from a date after its start, with a reason, recording who ended it; once only, and the ending cannot be moved. Ownership records that cite an engagement must cite that organisation's engagement at the same venue (previously unchecked).
+  - `api.places_overview(venue)` for the screen: the area tree in order, kinds, system types, systems with the areas they serve and their ownership records. Readable by the venue's tenant administrators and appointees; only administrators are offered changes and the organisation list.
+  - The set-up page's Areas and Building systems items link to the screen.
+  - `api.retire_gate_point`: a gate point blocks retiring its area, and there was no way to retire one, so retiring an area with a gate point was a dead end. Scans at a retired gate point were already refused. It cannot be un-retired.
+  - Three catalogue actions: `system.retire`, `system_ownership.end`, `gate_point.retire` (tenant administration; no operational authority).
+- Screen `/venue/places`: the area tree with add-below and retire on each row; area kinds; each system with the areas it serves, its responsibility records (record, end) and retire; register a system; system types. A refused retirement shows why, what is missing, who can resolve it, and each item in the way. Linked from Venue administration.
+- `/venue/entry`: each gate point can be retired. The page also gains a venue chooser: it always showed the first venue, so a second venue's entry set-up and gate points could not be reached (defect fix).
+
+**Tested**
+- pgTAP `46_places_and_systems` (66 assertions), on the phase 6b fixture with a live job and an isolation: refusals for areas below, gate points, unlifted stops, open jobs, occupations, appointments, isolations on a serving system; the same for systems; direct updates refused by the database; replays; stale versions; un-retiring; no new references to retired places; ending ownership (reason, dates, once, cannot be moved); citing another organisation's engagement; retiring a gate point and then its area; platform administrator, appointee and other-customer refusals; the read's visibility by role.
+- 19 of 19 deliberate weakenings caught.
+- Full suite on the test runner: 1,995 assertions, 0 failures. Unit tests: 39. Type check passes.
+- Tests 08 and 44 updated: retiring an area an appointment relies on is now a refusal in words, and the set-up items link to the screen.
+- Browser walk-through on the production build: as a tenant administrator on the rehearsal venue, add an area kind, an area and one below it; retiring the upper one is refused, naming the area below; register a system type and system, link it to an area, record a maintainer and end the record with a reason. On the demo venue, retiring Hall 1 is refused, naming its open job. Back on the rehearsal venue: a gate point is added in the mezzanine on the Entry page; retiring the mezzanine is refused, naming the gate; the gate point is retired; then the mezzanine and Hall A are retired. As the root appointee the page is read-only. Checked at 375 px.
+
+**For confirmation (stricter than §6 and §7 said)**
+- An appointment or delegation blocks retiring an area if any of its scopes names the area, not only when that is its only scope. This is what 0008 already enforced; it errs towards refusing.
+- Access visits, restriction windows, and keys or passes also block retiring an area; open jobs and delegations also block retiring a system.
+- Retired areas and systems cannot be newly referred to, and retiring cannot be undone.
+
+**Not built here, or limits**
+- System types and area kinds cannot be retired (as §7 said for types); system-area links cannot be removed in the pilot.
+- Gate points are managed on the Entry page, not here.
+- Retiring a gate point has no checks of its own: devices set up for it simply stop being able to record entry there.
+- After a successful action, a form that disappears takes its success message with it (the known 2b feedback gap), for example when ending an ownership record.
+

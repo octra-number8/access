@@ -8,7 +8,7 @@ import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 import { venueAreas } from "../../jobs/data";
 import {
-  createGatePoint, type EntryRules, type OutageProcedure, proposeEntryRules, proposePurposes, removeAudience, removePurpose, saveNeverOverridable,
+  createGatePoint, retireGatePoint, type EntryRules, type OutageProcedure, proposeEntryRules, proposePurposes, removeAudience, removePurpose, saveNeverOverridable,
   saveOutage, startEntryDraft, startOutageDraft, startPurposesDraft,
 } from "./actions";
 import { AudienceForm, PurposeForm } from "./forms";
@@ -19,13 +19,14 @@ const STATE: Record<string, string> = { draft: "draft", proposed: "proposed, wai
 
 // Entry rules, gate points and visit purposes (P7-2, Q121, Q191, §11). Drafted and proposed
 // here by the tenant administrator; approved on the decisions page by an access authority.
-export default async function EntrySetup() {
+export default async function EntrySetup({ searchParams }: { searchParams: Promise<{ venue?: string }> }) {
   const session = await getSession();
   if (!session) redirect("/sign-in?next=/venue/entry");
   if (session.tenantAdminCustomerIds.length === 0) return <p>Entry set-up is available to tenant administrators only.</p>;
   const db = await supabaseServer();
   const { data: venues } = await db.from("venue").select("id, name, timezone").in("customer_id", session.tenantAdminCustomerIds).order("name");
-  const venue = (venues ?? [])[0];
+  const { venue: chosen } = await searchParams;
+  const venue = (venues ?? []).find((v) => v.id === chosen) ?? (venues ?? [])[0];
   if (!venue) return <p>No venue yet.</p>;
   const { data: outageVersions } = await db.from("venue_config_version").select("id, version_no, status, content, row_version").eq("venue_id", venue.id)
     .eq("kind", "outage_procedure").in("status", ["draft", "proposed", "approved"]).order("version_no", { ascending: false });
@@ -34,7 +35,7 @@ export default async function EntrySetup() {
       .in("status", ["draft", "proposed", "approved"]).order("version_no", { ascending: false }),
     db.from("venue_config_version").select("id, version_no, status, content, row_version").eq("venue_id", venue.id).eq("kind", "access_purposes")
       .in("status", ["draft", "proposed", "approved"]).order("version_no", { ascending: false }),
-    db.from("gate_point").select("id, name, area_id").eq("venue_id", venue.id).is("retired_at", null).order("name"),
+    db.from("gate_point").select("id, name, area_id, row_version").eq("venue_id", venue.id).is("retired_at", null).order("name"),
     db.from("engagement_capacity").select("code, label"),
     db.from("induction_course").select("id, title").eq("venue_id", venue.id),
     venueAreas(db, venue.id),
@@ -55,6 +56,9 @@ export default async function EntrySetup() {
     <>
       <p><Link href="/venue">Venue administration</Link> · <Link href="/venue/passes">Card passes</Link></p>
       <h1>Entry set-up — {venue.name}</h1>
+      {(venues ?? []).length > 1 ? (
+        <form className="no-print"><label>Venue <select name="venue" defaultValue={venue.id}>{(venues ?? []).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label> <button type="submit" className="secondary">Show</button></form>
+      ) : null}
       <div className="notice">
         <p className="notice-title">For the venue&apos;s access authority to approve</p>
         <p>Who may be here, when, with which inductions and escorts, and the purposes a visit can have, are drafted here and approved by an appointed access authority who did not write them. Nothing has a default. Until rules are approved, the gate answers &ldquo;Check with the venue&apos;s access authority&rdquo; for everyone.</p>
@@ -113,7 +117,17 @@ export default async function EntrySetup() {
 
       <h2>Gate points</h2>
       {(points ?? []).length === 0 ? <p>None yet.</p> : (
-        <ul>{(points ?? []).map((p) => <li key={p.id}>{p.name} <span className="muted">· {names.get(p.area_id) ?? "an area"}</span></li>)}</ul>
+        <ul>{(points ?? []).map((p) => (
+          <li key={p.id}>{p.name} <span className="muted">· {names.get(p.area_id) ?? "an area"}</span>
+            <details><summary className="text-sm" aria-label={`Retire ${p.name}`}>Retire</summary>
+              <ActionForm action={retireGatePoint} what={`Retiring ${p.name}`} submitLabel="Retire this gate point" secondary>
+                <input type="hidden" name="key" value={k()} /><input type="hidden" name="gate_point_id" value={p.id} />
+                <input type="hidden" name="row_version" value={p.row_version} />
+                <p className="muted text-sm m-0">Entry can then no longer be checked here, including by devices already set up for it.</p>
+              </ActionForm>
+            </details>
+          </li>
+        ))}</ul>
       )}
       <details><summary>Add a gate point</summary>
         <ActionForm action={createGatePoint} what="Adding this gate point" submitLabel="Add gate point">

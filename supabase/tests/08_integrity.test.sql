@@ -97,8 +97,8 @@ select throws_ok($$update core.authority_action set basis = 'tenant_admin' where
   '42501', null, 'the authority catalogue cannot be edited');
 
 select tests.login(tests.w('u_a1'));
-select throws_ok(format($$select api.retire_area(%L, %L, %s)$$, tests.key(), tests.w('hall1'), tests.version('core.area', tests.w('hall1'))),
-  '23514', null, 'an area an appointment relies on cannot be retired');
+select is(api.retire_area(tests.key(), tests.w('hall1'), tests.version('core.area', tests.w('hall1'))) ->> 'code',
+  'in_use', 'an area an appointment relies on cannot be retired (S1-8: refused in words)');
 select throws_ok(format($$select api.retire_area(%L, %L, %s)$$, tests.key(), tests.w('site'), tests.version('core.area', tests.w('site'))),
   '23514', null, 'the venue root cannot be retired');
 select is(api.retire_area(tests.key(), tests.w('plant1'), tests.version('core.area', tests.w('plant1'))) ->> 'ok',

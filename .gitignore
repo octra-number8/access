@@ -13,3 +13,6 @@ e2e/.scanner.log
 .env.scanner.local
 .claude/settings.local.json
 *.tsbuildinfo
+
+# Redesign pack (screenshots and brief for Claude Design); kept local
+design-pack/

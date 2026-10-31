@@ -182,3 +182,39 @@ body {
   .shell-who { margin-top: auto; }
 }
 @media print { .shell-nav { display: none !important; } .shell { display: block; } }
+
+/* Sign-in (app/sign-in), from the "Octra Access Sign In" design: a dark panel beside the code form.
+   It fills the window, so the signed-out header and the page width limit step aside for it.
+   On a phone the panel shrinks to the logo and the form comes straight after. */
+body:has(.signin) > header { display: none; }
+main:has(> .signin) { max-width: none; padding: 0; }
+.signin { display: flex; flex-wrap: wrap; min-height: 100dvh; background: #f6f5f2; color: var(--octra-ink-900); }
+.signin-panel { flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 4rem;
+                padding: 3rem 3.5rem; background: #15171c; color: #f6f5f2; }
+.signin-pitch { display: flex; flex-direction: column; gap: 1.75rem; max-width: 32.5rem; }
+.signin-side { flex: 1 1 520px; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+.signin-card { width: 100%; max-width: 27.5rem; display: grid; gap: 1.75rem; padding: 2.5rem; background: var(--octra-surface);
+               border: 1px solid #e4e2dc; border-radius: 1rem; box-shadow: 0 1px 2px rgb(20 20 19 / .04), 0 12px 32px rgb(20 20 19 / .06); }
+.signin-input { width: 100%; height: 3.25rem; padding: 0 1rem; font: inherit; font-size: 1rem; color: var(--octra-ink-900); background: var(--octra-surface);
+                border: 1.5px solid #cfcdc6; border-radius: .625rem; }
+.signin-input::placeholder { color: #8a8882; }
+.signin-input:focus { outline: none; border-color: var(--octra-brand); box-shadow: 0 0 0 4px rgb(194 94 0 / .2); }
+.signin-code { height: 4rem; font-size: 1.875rem; font-weight: 600; letter-spacing: .42em; text-align: center; font-variant-numeric: tabular-nums; }
+.signin-primary, .signin-secondary { display: flex; align-items: center; justify-content: center; gap: .625rem; width: 100%; font: inherit; font-weight: 600; border-radius: .625rem; cursor: pointer; }
+.signin-primary { height: 3.25rem; font-size: 1rem; border: 0; background: var(--octra-brand); color: var(--octra-on-brand); }
+.signin-primary:hover { background: var(--octra-brand-hover); }
+.signin-primary[disabled] { opacity: .6; cursor: wait; }
+.signin-secondary { height: 3rem; font-size: .9375rem; border: 1.5px solid #cfcdc6; background: var(--octra-surface); color: var(--octra-ink-900); }
+.signin-secondary:hover { background: #f1efea; }
+.signin-link { display: inline; min-height: 0; padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--octra-brand);
+               cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.signin-link:hover { color: var(--octra-brand-hover); background: none; }
+.signin :focus-visible { outline: 3px solid var(--octra-ink-900); outline-offset: 2px; }
+.signin-panel :focus-visible { outline-color: #f6f5f2; }
+@media (max-width: 959px) {
+  .signin { align-content: flex-start; }
+  .signin-panel { flex-basis: 100%; padding: 1.25rem 1rem; gap: 0; }
+  .signin-pitch, .signin-foot { display: none; }
+  .signin-side { align-items: flex-start; padding: 1.5rem 1rem 3rem; }
+  .signin-card { padding: 1.75rem 1.25rem; }
+}

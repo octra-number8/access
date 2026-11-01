@@ -1,19 +1,13 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { PERMIT_STATE, type PermitSummary, timeLeft } from "@/lib/permits";
 import { getSession } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export default async function Home() {
   const session = await getSession();
-  if (!session) {
-    return (
-      <>
-        <h1>Octra Access</h1>
-        <p>Sign in to manage your organisation, your documents or venue decisions.</p>
-        <p><Link href="/sign-in">Sign in</Link></p>
-      </>
-    );
-  }
+  // Signed out, the front door is the sign-in page itself.
+  if (!session) redirect("/sign-in");
   const db = await supabaseServer();
   const [{ data: isOps }, { data: mine }] = await Promise.all([db.rpc("am_platform_admin"), db.rpc("my_live_permits")]);
   const permits = ((mine as { permits?: PermitSummary[] } | null)?.permits ?? []);

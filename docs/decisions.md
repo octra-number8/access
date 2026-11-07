@@ -189,6 +189,15 @@ Approved 29 October 2026.
 - Enforced by a trigger on `core.appointment` (migration `20261025000070`), so it holds on every path. It refuses a record; it never grants an action, so administration still grants no authority (invariant 9). Existing appointments are untouched.
 - The rehearsal venue already has this problem. Rather than adding a recovery route, a fresh venue is set up with the venue creation screen.
 - Built with the platform set-up gaps: see set-up-screens-design.md §16 (migration `20261025000069`, pgTAP `48_venue_and_type_setup`).
+
+## D-028 — Production email through Resend (E1); sign-in codes are 6 digits
+
+Decided 1 November 2026 by Wes Pierce.
+- All email comes from an Octra-branded address sent through Resend: sign-in codes (Supabase Auth custom SMTP) and the app's own emails (invitations, notices) over the existing SMTP settings. Sender `Octra Access <no-reply@octra.co.uk>`; the domain is verified in Resend with its SPF/DKIM records. Create the Resend domain in the EU (Ireland) region, per E1.
+- Resend SMTP: host `smtp.resend.com`, port `465`, user `resend`, password a Resend API key with sending access only. The key lives in the Supabase dashboard and in Vercel environment variables, never in the repository.
+- The hosted project had `otp_length = 8` while the sign-in screen asks for 6 digits. The hosted setting is changed to 6 to match `supabase/config.toml` and the screen.
+- `supabase config push` is not used to apply either change: the local config would overwrite the hosted site URL, redirect URLs and email confirmation setting.
+- Incident, 1 November 2026: a `config push` meant as a preview did apply the local config to the hosted project. The site URL, redirect URLs, email confirmation, TOTP MFA and code-resend interval were restored the same day. The hosted API now exposes only the `api` schema (previously `public, graphql_public`). Kept, because the app reads all its data through `api`.
 ---
 
 ## CLAUDE.md wording — applied 24 October 2026 (approved by Wes Pierce)
@@ -239,7 +248,7 @@ repository CLAUDE.md is the controlling version.
 
 | Ref | Question | Recommendation |
 |---|---|---|
-| E1 | Production email: invitations are sent by the app over SMTP, and Supabase Auth sends sign-in codes. Supabase's built-in mail is not for production. | One UK/EU-hosted SMTP provider for both (configured in Supabase Auth and the app), with SPF/DKIM on an Octra sending domain. Choose before the pilot. |
+| E1 | Production email: invitations are sent by the app over SMTP, and Supabase Auth sends sign-in codes. Supabase's built-in mail is not for production. | **Settled by D-028:** Resend for both. |
 
 ## Open — raised by the phase 3a build (see phase-3-design.md §11)
 
